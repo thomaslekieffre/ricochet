@@ -142,8 +142,26 @@ avec l'art mais gardé pour une identification rapide. Testé en vrai
 lisibles, zéro erreur console. `npx tsc --noEmit`, `npm test`, `npm run check`,
 `npm run build` tous verts.
 
-**Reste dans P2 (polish, pas bloquant)** : animations (les sprites sont des
-poses statiques, le squash/stretch/glow procédural s'applique par-dessus) ;
+**Lisibilité des chocs/KO (fait 2026-09-11)** — retour de Zoe après avoir
+joué : « des fois on a un peu de mal à comprendre pourquoi c'est mon bonhomme
+qui se fait éjecter ». En 3v3 à résolution simultanée, plusieurs chocs
+peuvent arriver d'un coup, difficile de voir qui vient de se faire toucher.
+`renderer.ts` : nouveau `renderImpacts()` + layer `impactG`, alimenté par les
+deux points de détection déjà existants dans `syncBody` (chute brutale de
+vitesse = choc ; transition alive→false = KO) — un anneau qui s'agrandit et
+s'efface (blanc + double anneau pour un KO, couleur de camp sinon) marque net
+l'endroit et l'instant. Aucune dépendance à de nouvelles données du solveur
+(tout vient des positions déjà reçues frame par frame), donc zéro risque pour
+le déterminisme. `npx tsc --noEmit`, `npm test`, `npm run check` verts ;
+vérifié en vrai en jouant plusieurs tours (bot vs bot, Coriace) — les bases de
+camp (vert/rose) sous les sprites, ajoutées avec les sprites eux-mêmes plus
+tôt dans la journée, confirmées lisibles même quand les deux camps partagent
+le même héros (ex. Boulder vs Boulder, non banni des deux côtés).
+
+**Reste dans P2 (polish, pas bloquant)** : **animations par héros** —
+prochain gros chantier voté avec Zoe (les sprites sont des poses statiques,
+le squash/stretch/glow procédural s'applique par-dessus, le flash de choc
+ci-dessus est un pis-aller en attendant de vraies frames d'impact/KO) ;
 équilibrage réel des 8 héros par des parties ; code-splitting du bundle si sa
 taille devient gênante ; qualité visuelle inégale entre héros (Boulder/Ram en
 rendu « figurine » plein, Sling/Arc en trait fin plus sobre) — pas retouché,

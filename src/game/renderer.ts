@@ -198,6 +198,16 @@ interface Particle {
   color: number;
 }
 
+/** Flash de choc ou de KO — lisibilité de « qui vient de se faire toucher ». */
+interface ImpactMark {
+  x: number;
+  y: number;
+  r: number; // rayon du héros touché, pour dimensionner l'anneau
+  color: number;
+  born: number;
+  ko: boolean; // KO = anneau plus grand, plus clair, plus long
+}
+
 const IMPACT_SPEED_MIN = 90; // world units/sec — en dessous, pas un vrai choc
 const IMPACT_DROP_RATIO = 0.4; // vitesse tombée sous 40% de la précédente == choc
 
@@ -214,6 +224,7 @@ export class Renderer {
   private particlesLayer = new PIXI.Container();
   private fxG = new PIXI.Graphics(); // ligne de visée en cours
   private effectsG = new PIXI.Graphics(); // ondes de choc / callouts de capacité
+  private impactG = new PIXI.Graphics(); // flash de choc / KO — lisibilité "qui se fait toucher"
   private fxTextLayer = new PIXI.Container();
   private vignetteG = new PIXI.Graphics();
 
@@ -221,6 +232,7 @@ export class Renderer {
   private projTrails: Array<Array<{ x: number; y: number }>> = [];
   private bodies = new Map<number, BodyVisual>();
   private particles: Particle[] = [];
+  private impacts: ImpactMark[] = [];
   private castTexts = new Map<CastFx, PIXI.Text>();
   private heroTextures = new Map<HeroKind, PIXI.Texture>();
   private onResize = (): void => this.resize();
@@ -253,6 +265,7 @@ export class Renderer {
       this.projG,
       this.bodiesLayer,
       this.particlesLayer,
+      this.impactG,
       this.fxG,
       this.effectsG,
       this.fxTextLayer,
@@ -333,6 +346,7 @@ export class Renderer {
     }
 
     this.tickParticles(now);
+    this.renderImpacts(now);
     this.effects(v, now);
   }
 
@@ -554,11 +568,14 @@ export class Renderer {
       this.bodies.set(id, bv);
     }
     bv.container.visible = alive || now < bv.poofUntil;
+    const r = sc(fx.toFloat(HEROES[hero].radius));
 
     if (!alive) {
       if (bv.lastAlive) {
-        // KO à l'instant : petite explosion de débris + poof
+        // KO à l'instant : petite explosion de débris + poof + flash net —
+        // c'est LE moment où il faut que ce soit évident que ce corps sort.
         this.burst(bv.lastX, bv.lastY, col(owner), 14);
+        this.impacts.push({ x: bv.lastX, y: bv.lastY, r, color: col(owner), born: now, ko: true });
         bv.poofUntil = now + 260;
       }
       bv.lastAlive = false;
@@ -575,7 +592,6 @@ export class Renderer {
     bv.lastAlive = true;
     bv.container.alpha = 1;
 
-    const r = sc(fx.toFloat(HEROES[hero].radius));
     const c = col(owner);
     const archetype = HEROES[hero].archetype;
 
@@ -585,6 +601,7 @@ export class Renderer {
     const speed = Math.hypot(dx, dy);
     if (bv.lastSpeed > IMPACT_SPEED_MIN && speed < bv.lastSpeed * IMPACT_DROP_RATIO) {
       this.burst(px, py, c, 8);
+      this.impacts.push({ x: px, y: py, r, color: c, born: now, ko: false });
       bv.spawnAt = now; // relance l'anim de squash au point d'impact
     }
     bv.lastSpeed = speed;
@@ -727,6 +744,40 @@ export class Renderer {
       keep.push(p);
     }
     this.particles = keep;
+  }
+
+  /**
+   * Anneau de flash au moment d'un choc ou d'un KO — sur des chocs
+   * simultanés en 3v3, difficile de repérer d'un coup d'œil qui vient de
+   * se faire toucher ; ce flash blanc net (au lieu de juste la couleur du
+   * camp, qui se noie dans le reste) résout ça sans nouvelle animation.
+   */
+  private renderImpacts(now: number): void {
+    const g = this.impactG;
+    g.clear();
+    const HIT_MS = 220;
+    const KO_MS = 420;
+    const keep: ImpactMark[] = [];
+    for (const m of this.impacts) {
+      const dur = m.ko ? KO_MS : HIT_MS;
+      const age = now - m.born;
+      if (age < 0 || age >= dur) continue;
+      keep.push(m);
+      const p = age / dur;
+      const ease = 1 - (1 - p) * (1 - p);
+      const rMax = m.r * (m.ko ? 2.6 : 1.9);
+      const rr = m.r * 0.7 + ease * (rMax - m.r * 0.7);
+      const alpha = 1 - p;
+      // anneau net, blanc pour un KO (se détache de tout), couleur de camp sinon
+      g.lineStyle(m.ko ? 4 : 2.5, m.ko ? 0xffffff : m.color, alpha * (m.ko ? 0.95 : 0.75));
+      g.drawCircle(m.x, m.y, rr);
+      if (m.ko) {
+        // second anneau, un cran derrière — lit comme une onde de KO
+        g.lineStyle(2, m.color, alpha * 0.5);
+        g.drawCircle(m.x, m.y, rr * 0.72);
+      }
+    }
+    this.impacts = keep;
   }
 
   // ---- visée --------------------------------------------------------------
