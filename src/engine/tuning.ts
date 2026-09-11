@@ -36,7 +36,18 @@ export const QUAKE_FORCE = fromInt(1150);
 export const SECONDWIND_LAUNCH = fromInt(430); // Ram
 export const SLIP_NOOP = 0; // Comet slipstream has no number, just a flag
 export const YANK_RANGE = fromInt(380); // Hook Anchor Toss
-export const YANK_PULL = fromInt(560);
+export const YANK_PULL = fromInt(560); // pull fixe de l'Anchor Toss (portée, capacité)
+// Accroche (passive, contact de charge normal) : contrairement au knockback
+// standard de tout autre héros, qui scale avec la vitesse d'impact, la prise
+// au contact utilisait un pull FIXE — une charge à fond ou à peine avait le
+// même effet, quasi nul. Trouvé en objectivant un round-robin bot vs bot
+// (docs/PHASES.md, 2026-09-11) : Hook perdait 0/7 matchups, très en dessous
+// des autres héros de mêlée. Le contact scale maintenant sur la vitesse de
+// charge de Hook (comme le bonus d'élan de Ram plus haut), avec un plancher
+// pour qu'une charge courte ne soit pas totalement inoffensive.
+export const YANK_CONTACT_PULL_RATIO = fromFloat(0.62); // fraction de la vitesse de Hook convertie en pull
+export const YANK_CONTACT_PULL_MIN = fromInt(300); // plancher — l'ancien pull fixe était nettement plus bas (448)
+export const YANK_SELF_KEEP = fromFloat(0.4); // vitesse gardée par Hook après le grappin (était 0.2)
 export const RICOCHET_BOUNCES = 1; // Sling
 export const FLARE_DELAY = 1; // Prism — turns before a pulse detonates
 export const FLARE_RADIUS = fromInt(210);

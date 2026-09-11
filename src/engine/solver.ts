@@ -466,12 +466,16 @@ function collideBodies(a: Body, b: Body): boolean {
       const hy = hook.y - other.y;
       const hd = fx.sqrt(fx.mul(hx, hx) + fx.mul(hy, hy));
       if (hd > 0) {
-        const pull = fx.mul(T.YANK_PULL, fx.fromFloat(0.8));
+        // scale sur la vitesse de charge de Hook (comme le knockback standard
+        // de tout autre héros), planchée pour qu'une charge courte reste utile.
+        const hookSpeed = fx.sqrt(fx.mul(hook.vx, hook.vx) + fx.mul(hook.vy, hook.vy));
+        const scaled = fx.mul(hookSpeed, T.YANK_CONTACT_PULL_RATIO);
+        const pull = scaled > T.YANK_CONTACT_PULL_MIN ? scaled : T.YANK_CONTACT_PULL_MIN;
         other.vx = fx.div(fx.mul(hx, pull), hd);
         other.vy = fx.div(fx.mul(hy, pull), hd);
       }
-      hook.vx = fx.mul(hook.vx, fx.fromFloat(0.2));
-      hook.vy = fx.mul(hook.vy, fx.fromFloat(0.2));
+      hook.vx = fx.mul(hook.vx, T.YANK_SELF_KEEP);
+      hook.vy = fx.mul(hook.vy, T.YANK_SELF_KEEP);
       hook.charging = false;
       return true;
     }

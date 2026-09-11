@@ -191,11 +191,37 @@ sans tout casser), et basculer `bv.sprite.texture` sur les deux hooks déjà en
 place dans `syncBody` (chute de vitesse, transition alive→false) — les mêmes
 qui alimentent déjà `renderImpacts()`.
 
-**Reste dans P2 (polish, pas bloquant), au-delà des animations** :
-équilibrage réel des 8 héros par des parties ; code-splitting du bundle si sa
-taille devient gênante ; qualité visuelle inégale entre héros (Boulder/Ram en
-rendu « figurine » plein, Sling/Arc en trait fin plus sobre) — pas retouché,
-pas bloquant pour la lisibilité en jeu.
+**Équilibrage — signal objectif + un vrai correctif (2026-09-11 soir)**
+`scripts/balance-report.ts` (nouveau, pas dans `npm test`/`check` — un
+one-off comme `net-test.ts`) : round-robin d'équipes mono-héros (3x le même)
+sur Carrefour, bot niveau 1 des deux côtés. Le moteur étant entièrement
+déterministe, chaque matchup ne donne qu'**un seul** résultat — ce n'est pas
+un échantillon statistique, juste un repérage des cas grossiers ; **le bot
+niveau 1 n'utilise jamais les capacités**, donc ça teste les héros amputés de
+leur identité (Grappin, Effondrement, Éclat...). Premier passage : Hook
+perdait 0/7, y compris des scores 0-15 pas franchement resserrés.
+
+En creusant `solver.ts` : le contact de charge de Hook (passive Accroche,
+toujours active) utilisait un **pull fixe** (`YANK_PULL * 0.8`), indépendant
+de sa vitesse de charge — contrairement au knockback standard de tout autre
+héros de mêlée, qui scale avec la vitesse d'impact (`vn` dans le calcul
+d'impulsion). Chargeait à fond ou à peine, même effet quasi nul, et Hook
+perdait en plus 80 % de sa propre vitesse au contact (`*0.2`). Corrigé dans
+`tuning.ts`/`solver.ts` : le pull scale maintenant sur la vitesse de charge
+de Hook (`YANK_CONTACT_PULL_RATIO`, plancher `YANK_CONTACT_PULL_MIN`), Hook
+garde 40 % de sa vitesse au lieu de 20 % (`YANK_SELF_KEEP`). Après
+correction : Hook 0/7 (marge −13,3) → 1/7 (marge −8,9), les défaites 0-15
+resserrées à 1-15/2-15/4-15. `npx tsc --noEmit`, `npm test`, `npm run check`
+verts après le changement.
+
+Arrêté volontairement là — Boulder/Sling dominent encore nettement à ce
+niveau de bot, Ram/Comet restent faibles, mais aller plus loin sur un signal
+de bot sans capacités serait théoriser plutôt que jouer (règle du
+`CLAUDE.md`). **Reste (avec toi)** : équilibrage réel par de vraies parties,
+capacités comprises ; code-splitting du bundle si sa taille devient gênante ;
+qualité visuelle inégale entre héros (Boulder/Ram en rendu « figurine »
+plein, Sling/Arc en trait fin plus sobre) — pas retouché, pas bloquant pour
+la lisibilité en jeu.
 
 ---
 
