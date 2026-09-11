@@ -9,8 +9,8 @@ que quand la précédente est verte.
 | 1 | Le choc — solveur de knockback déterministe | ✅ Fait |
 | 2 | Le jeu complet en local — mode Contrôle, 6 héros, 3 arènes, bot, hotseat | ✅ Fait |
 | 3 | Serveur autoritatif — 1v1 en ligne, sans compte | ✅ Fait |
-| 4 | Comptes + matchmaking + file non classée | 🟡 Partiel — **profil local fait**, **serveur ↔ PocketBase branché et testé en vrai** (auth JWT, `settle-match` à chaque match en ligne), **écran connexion/compte fait** ; reste le matchmaking par note |
-| 5 | Classé Glicko-2 + saisons | 🟡 Partiel — `glicko2.ts` fait + testé, **note cachée locale vs bot faite**, migrations écrites |
+| 4 | Comptes + matchmaking + file non classée | ✅ Fait — profil local, serveur ↔ PocketBase, écran connexion/compte, matchmaking par note, tous testés en vrai |
+| 5 | Classé Glicko-2 + saisons | 🟡 Partiel — `glicko2.ts` fait + testé, matchmaking par note + bascule `ranked` fait et testé, note cachée locale vs bot faite, migrations écrites ; reste à seeder une saison active pour vérifier la mise à jour Glicko-2 en vrai |
 | 6 | Draft ban/pick + roster complet + replays + spectate | ✅ Fait |
 | 7 | Pass de saison + cosmétiques + déploiement | 🟡 Partiel — migrations + `DEPLOY.md` + Docker |
 
@@ -343,17 +343,51 @@ collections PocketBase classiques :
   PocketBase traite 0 comme « vide » et rejette l'écriture. Voir les
   commentaires dans les fichiers de migration.
 
-### Matchmaking
+### Matchmaking (fait 2026-09-11)
 
-- Service dans le serveur Bun : file ordonnée par `mu`, fenêtre d'acceptation qui
-  s'élargit avec l'attente (`±(60 + 12·secondes)`).
-- Anti-abandon : un `over` par forfait compte comme défaite (Phase 5).
+`server/server.ts` — file ordonnée par note affichée (`toDisplay(rating)`,
+échelle 1500 ± 173.7·mu, `src/lib/glicko2.ts`), fenêtre d'acceptation qui
+s'élargit avec l'attente (`±(60 + 12·secondes)`) : `matchRanked()` cherche,
+pour le compte qui attend depuis le plus longtemps, l'adversaire classé dispo
+le plus proche en note dans la fenêtre courante ; un `setInterval` (2 s) fait
+grandir la fenêtre même sans nouvel événement de file. `fetchRating()` lit
+`ratings` (lecture publique côté PocketBase, pas besoin du JWT du joueur) —
+pas de ligne == jamais classé == note de départ 1500, même valeur que
+`ratingOrDefault` côté `settle-match.pb.js`.
+
+**Jouer sans compte reste toujours immédiat** : un invité (`ratingDisplay ===
+null`) absorbe le premier venu dans `matchFifoFallback()`, classé ou non, sans
+jamais attendre derrière la file par note. Un compte classé qui ne trouve pas
+d'adversaire proche retombe en non classé après `RANKED_FALLBACK_MS` (45 s)
+face à un autre compte classé dans le même cas — pour ne jamais rester bloqué
+si trop peu de joueurs classés sont en ligne. `Match` porte désormais son
+`mode` ("ranked"/"unranked") jusqu'à `settle()`, qui ne classe que si les deux
+sièges sont des comptes identifiés (`p.mode` remplace la valeur `"unranked"`
+jusque-là codée en dur dans `settleMatch()`).
+
+Testé en vrai (`POCKETBASE_URL` sur une instance locale, deux comptes créés) :
+classé-vs-classé s'apparie en ~90 ms (même note par défaut, diff 0 ≤ fenêtre),
+classé-vs-invité et invité-vs-invité en ~15 ms — l'invité n'attend jamais.
+`npm test`, `npm run check`, `npm run net-test`, `npm run build` tous verts
+après le changement (le `net-test` deux-invités confirme la non-régression du
+chemin non classé d'origine).
+
+**Reste** : aucune `seasons` (`active: true`) n'existe encore en local ni en
+prod (P7, pas encore seedée) — un match `mode: "ranked"` s'enregistre
+correctement dans `matches`, mais `settle-match.pb.js` n'applique la mise à
+jour Glicko-2 (`ratings`/`season_ratings`) que si une saison active est
+trouvée ; donc pas encore vérifié en vrai que la note bouge après un match
+classé, seul le matchmaking lui-même (l'appariement) l'a été. Anti-abandon
+(un `over` par forfait compte comme défaite) déjà géré par `onLeave()` côté
+`Match`, hérité de P3/P4 — rien à ajouter pour P5.
 
 ### Livrables
 
 - Écran connexion / profil (choix du pseudo). ✅
 - `src/net/session.ts` : gestion du JWT PocketBase, refresh. ✅
-- File non classée fonctionnelle bout en bout.
+- File non classée fonctionnelle bout en bout. ✅
+- Matchmaking par note + bascule `mode: "ranked"`. ✅ (reste à vérifier la
+  mise à jour Glicko-2 en vrai une fois une saison active seedée, P7)
 - Le serveur de match appelle `POST /api/settle-match` en fin de partie
   (fait, `pocketbase/pb_hooks/settle-match.pb.js` — reste à brancher l'appel
   côté `server/server.ts`).

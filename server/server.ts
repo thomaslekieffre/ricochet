@@ -11,6 +11,7 @@ import { createServer, type Server } from "node:http";
 import { WebSocketServer, type WebSocket } from "ws";
 import { hashState, newMatch, resolve, ROSTER } from "../src/engine/index";
 import type { GameState, HeroKind, Order } from "../src/engine/index";
+import { DEFAULT_RATING, toDisplay } from "../src/lib/glicko2";
 import {
   DEFAULT_PORT,
   PROTOCOL_VERSION,
@@ -27,6 +28,14 @@ const DRAFT_BAN_MS = 15_000;
 const DRAFT_PICK_MS = 25_000;
 
 const HOLD: Order = { bodyId: -1, angleIdx: 0, power: 0, ability: false, hold: true };
+
+// Matchmaking par note (docs/PHASES.md P5) : fenêtre d'acceptation qui s'élargit
+// avec l'attente, en points de note affichée (échelle 1500 ± 173.7·mu).
+const RANK_WINDOW_BASE = 60;
+const RANK_WINDOW_PER_SEC = 12;
+/** Au-delà de cette attente sans adversaire de note proche, on retombe en file classique (non classé). */
+const RANKED_FALLBACK_MS = 45_000;
+const DEFAULT_DISPLAY_RATING = toDisplay(DEFAULT_RATING).rating; // 1500
 
 // PocketBase (docs/PHASES.md P4) : optionnel — absent en dev sans backend branché,
 // les matchs ne sont juste pas persistés (aucun crash, `settleMatch` devient un no-op).
@@ -49,7 +58,36 @@ async function verifyToken(token: string | undefined): Promise<string | null> {
   }
 }
 
+/**
+ * Note affichée (échelle Glicko-2 1500 ± 173.7·mu) d'un compte, pour le
+ * matchmaking par fenêtre (P5). `ratings` est en lecture publique côté
+ * PocketBase — pas besoin du JWT du joueur. Pas de ligne == jamais classé
+ * encore == note de départ (1500), comme `ratingOrDefault` côté
+ * `settle-match.pb.js`.
+ */
+async function fetchRating(userId: string): Promise<number> {
+  if (!POCKETBASE_URL) return DEFAULT_DISPLAY_RATING;
+  try {
+    const filter = encodeURIComponent(`user='${userId}'`);
+    const res = await fetch(
+      `${POCKETBASE_URL}/api/collections/ratings/records?filter=${filter}&perPage=1`,
+    );
+    if (!res.ok) return DEFAULT_DISPLAY_RATING;
+    const body = (await res.json()) as { items?: Array<{ mu?: number; phi?: number }> };
+    const rec = body.items?.[0];
+    if (!rec) return DEFAULT_DISPLAY_RATING;
+    return toDisplay({
+      mu: rec.mu ?? DEFAULT_RATING.mu,
+      phi: rec.phi ?? DEFAULT_RATING.phi,
+      sigma: 0,
+    }).rating;
+  } catch {
+    return DEFAULT_DISPLAY_RATING;
+  }
+}
+
 interface SettleParams {
+  mode: "ranked" | "unranked";
   arenaId: string;
   seat0: string | null;
   seat1: string | null;
@@ -73,7 +111,7 @@ async function settleMatch(p: SettleParams): Promise<void> {
         ...(MATCH_SETTLE_SECRET ? { "X-Settle-Secret": MATCH_SETTLE_SECRET } : {}),
       },
       body: JSON.stringify({
-        mode: "unranked", // P5 (classé) branchera un vrai matchmaking par note avant d'envoyer "ranked"
+        mode: p.mode, // "ranked" si les deux sièges viennent du matchmaking par note (P5)
         arena: p.arenaId,
         seat0: p.seat0,
         seat1: p.seat1,
@@ -110,6 +148,14 @@ interface Client {
   alive: boolean;
   /** Id utilisateur PocketBase si `QueueSetup.token` a été vérifié avec succès (P4), sinon invité. */
   userId: string | null;
+  /** Horodatage de mise en file — fait grandir la fenêtre d'acceptation (P5). */
+  queuedAt: number;
+  /**
+   * Note affichée courante, une fois `userId` vérifié et la note récupérée
+   * (P5). `null` tant que c'est en cours, ou pour un invité — jamais éligible
+   * au matchmaking classé.
+   */
+  ratingDisplay: number | null;
 }
 
 function send(c: Client, msg: ServerMsg): void {
@@ -248,6 +294,7 @@ class Match {
     private teamA: HeroKind[],
     private teamB: HeroKind[],
     arenaId: string,
+    private mode: "ranked" | "unranked" = "unranked",
   ) {
     const [a, b] = seats;
     a.match = this;
@@ -376,7 +423,15 @@ class Match {
 
   /** Persiste le match terminé via `settle-match` (P4) — best-effort, ne bloque jamais la partie. */
   private settle(winner: 0 | 1 | null): void {
+    // classé seulement si les deux sièges sont des comptes identifiés — un
+    // forfait/déco avant vérification du token (ou un invité côté matchmaking
+    // par note qui n'aurait jamais dû arriver ici) retombe en non classé.
+    const mode: "ranked" | "unranked" =
+      this.mode === "ranked" && this.seats[0].userId && this.seats[1].userId
+        ? "ranked"
+        : "unranked";
     void settleMatch({
+      mode,
       arenaId: this.arenaId,
       seat0: this.seats[0].userId,
       seat1: this.seats[1].userId,
@@ -425,29 +480,107 @@ export function createMatchServer(port = DEFAULT_PORT): { http: Server; close: (
 
   const wss = new WebSocketServer({ server: http });
 
-  const tryMatch = () => {
-    while (waiting.length >= 2) {
-      const a = waiting.shift()!;
-      const b = waiting.shift()!;
-      if (!a.alive) {
-        waiting.unshift(b);
-        continue;
+  const removeFromWaiting = (c: Client): void => {
+    const i = waiting.indexOf(c);
+    if (i >= 0) waiting.splice(i, 1);
+  };
+
+  const startMatch = (a: Client, b: Client, mode: "ranked" | "unranked"): void => {
+    const id = `m${nextId++}`;
+    a.seat = 0;
+    b.seat = 1;
+    send(a, { t: "paired", matchId: id, seat: 0 });
+    send(b, { t: "paired", matchId: id, seat: 1 });
+    // seat 0 picks the arena, comme avant l'introduction du draft
+    new Draft(id, [a, b], a.setup!.arenaId, (teamA, teamB, arenaId) => {
+      new Match(id, [a, b], teamA, teamB, arenaId, mode);
+    });
+  };
+
+  /**
+   * File ordonnée par note (P5) : le compte qui attend depuis le plus
+   * longtemps entraîne la plus large fenêtre (`±(60 + 12·s)` en points de
+   * note affichée), on cherche l'adversaire classé dispo le plus proche à
+   * l'intérieur. Deux invités (ou n'importe qui après `RANKED_FALLBACK_MS`
+   * sans adversaire classé proche) tombent dans la file non classée FIFO
+   * inchangée — jouer sans compte reste toujours immédiat.
+   */
+  const matchRanked = (): void => {
+    const rated = waiting
+      .filter((c) => c.alive && c.ratingDisplay !== null)
+      .sort((x, y) => x.queuedAt - y.queuedAt);
+    const used = new Set<Client>();
+    for (const a of rated) {
+      if (used.has(a)) continue;
+      const waitS = (Date.now() - a.queuedAt) / 1000;
+      const window = RANK_WINDOW_BASE + RANK_WINDOW_PER_SEC * waitS;
+      let best: Client | null = null;
+      let bestDiff = Infinity;
+      for (const b of rated) {
+        if (b === a || used.has(b)) continue;
+        const diff = Math.abs(a.ratingDisplay! - b.ratingDisplay!);
+        if (diff <= window && diff < bestDiff) {
+          best = b;
+          bestDiff = diff;
+        }
       }
-      if (!b.alive) {
-        waiting.unshift(a);
-        continue;
+      if (best) {
+        used.add(a);
+        used.add(best);
       }
-      const id = `m${nextId++}`;
-      a.seat = 0;
-      b.seat = 1;
-      send(a, { t: "paired", matchId: id, seat: 0 });
-      send(b, { t: "paired", matchId: id, seat: 1 });
-      // seat 0 picks the arena, comme avant l'introduction du draft
-      new Draft(id, [a, b], a.setup!.arenaId, (teamA, teamB, arenaId) => {
-        new Match(id, [a, b], teamA, teamB, arenaId);
-      });
+    }
+    for (const c of used) removeFromWaiting(c);
+    // apparie les paires trouvées (après avoir purgé `waiting`, `used` par paires successives dans l'ordre où elles ont été formées)
+    const pairs: Client[] = [...used];
+    for (let i = 0; i < pairs.length; i += 2) {
+      startMatch(pairs[i]!, pairs[i + 1]!, "ranked");
     }
   };
+
+  const pairAndRemove = (idxA: number, idxB: number, mode: "ranked" | "unranked"): void => {
+    const a = waiting[idxA]!;
+    const b = waiting[idxB]!;
+    waiting.splice(Math.max(idxA, idxB), 1);
+    waiting.splice(Math.min(idxA, idxB), 1);
+    startMatch(a, b, mode);
+  };
+
+  /**
+   * Non classé : jouer sans compte reste toujours immédiat — un invité
+   * absorbe le premier venu (classé ou non) plutôt que d'attendre derrière la
+   * file par note. Une fois les invités épuisés, seuls des comptes classés
+   * restent : ils ne tombent en non classé entre eux qu'après
+   * `RANKED_FALLBACK_MS` sans adversaire de note proche.
+   */
+  const matchFifoFallback = (): void => {
+    for (;;) {
+      if (waiting.length < 2) return;
+      const guestIdx = waiting.findIndex((c) => c.alive && c.ratingDisplay === null);
+      if (guestIdx >= 0) {
+        const otherIdx = waiting.findIndex((c, i) => i !== guestIdx && c.alive);
+        if (otherIdx < 0) return;
+        pairAndRemove(guestIdx, otherIdx, "unranked");
+        continue;
+      }
+      const expired = (c: Client): boolean => Date.now() - c.queuedAt > RANKED_FALLBACK_MS;
+      const idxA = waiting.findIndex((c) => c.alive && expired(c));
+      if (idxA < 0) return;
+      const idxB = waiting.findIndex((c, i) => i !== idxA && c.alive && expired(c));
+      if (idxB < 0) return;
+      pairAndRemove(idxA, idxB, "unranked");
+    }
+  };
+
+  const tryMatch = (): void => {
+    for (let i = waiting.length - 1; i >= 0; i--) {
+      if (!waiting[i]!.alive) waiting.splice(i, 1);
+    }
+    matchRanked();
+    matchFifoFallback();
+  };
+
+  // la fenêtre de note grandit avec le temps : re-tente même sans nouvel événement.
+  const rankedTicker = setInterval(tryMatch, 2000);
 
   wss.on("connection", (ws: WebSocket) => {
     const client: Client = {
@@ -460,6 +593,8 @@ export function createMatchServer(port = DEFAULT_PORT): { http: Server; close: (
       seat: 0,
       alive: true,
       userId: null,
+      queuedAt: 0,
+      ratingDisplay: null,
     };
     send(client, { t: "welcome", v: PROTOCOL_VERSION });
 
@@ -477,10 +612,13 @@ export function createMatchServer(port = DEFAULT_PORT): { http: Server; close: (
         case "queue":
           if (client.match) return;
           client.setup = msg.setup;
+          client.queuedAt = Date.now();
+          client.ratingDisplay = null;
           if (!waiting.includes(client)) waiting.push(client);
           send(client, { t: "queued" });
-          void verifyToken(msg.setup.token).then((userId) => {
+          void verifyToken(msg.setup.token).then(async (userId) => {
             client.userId = userId;
+            client.ratingDisplay = userId ? await fetchRating(userId) : null;
             tryMatch();
           });
           break;
@@ -541,6 +679,7 @@ export function createMatchServer(port = DEFAULT_PORT): { http: Server; close: (
   return {
     http,
     close: () => {
+      clearInterval(rankedTicker);
       wss.close();
       http.close();
     },
