@@ -3,7 +3,6 @@ import {
   hashState,
   HEROES,
   newMatch,
-  pickOrder,
   resolve,
   trig,
   tuning,
@@ -12,6 +11,7 @@ import type { Frame, GameState, HeroKind, Order, TurnEvent } from "../engine/ind
 import type { NetClient } from "../net/client";
 import type { ServerMsg } from "../net/protocol";
 import { sfx } from "./audio";
+import { BotClient } from "./bot-client";
 import { Renderer } from "./renderer";
 import type { CastFx, ShockFx } from "./renderer";
 import { curtain } from "./ui";
@@ -101,6 +101,7 @@ export class Match {
   private lastPlayedTurn = -1;
   private netUnsub: (() => void) | null = null;
   private disposed = false;
+  private botClient: BotClient | null = null;
 
   private get mySeat(): 0 | 1 {
     return this.opts.net ? this.opts.net.seat : this.activeSide;
@@ -178,6 +179,7 @@ export class Match {
   dispose(): void {
     this.disposed = true;
     cancelAnimationFrame(this.raf);
+    this.botClient?.dispose();
     this.netUnsub?.();
     this.canvas.removeEventListener("pointerdown", this.onDown);
     this.canvas.removeEventListener("contextmenu", this.onContext);
@@ -240,15 +242,17 @@ export class Match {
     this.abilityArmed = false;
 
     if (this.opts.sides[side] === "bot") {
-      // defer the (synchronous, heavy) search a tick so the "thinking" frame paints
+      // le calcul (~250 ms au niveau 2) tourne dans un Web Worker : ne bloque
+      // plus le thread principal, donc plus de "thinking" frame à sacrifier.
       this.botThinking = true;
       this.phase = "select";
-      setTimeout(() => {
+      this.botClient ??= new BotClient();
+      this.botClient.pick(this.state, side, this.opts.botLevel).then((order) => {
         if (this.disposed) return;
-        this.orders[side] = pickOrder(this.state, side, this.opts.botLevel);
+        this.orders[side] = order;
         this.botThinking = false;
         this.advance();
-      }, 30);
+      });
       return;
     }
 

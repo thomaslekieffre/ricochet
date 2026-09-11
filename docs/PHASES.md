@@ -75,10 +75,15 @@ gros à la casse haute, onde de choc à 3 anneaux pour Quake / détonation d'Éc
 Mur temporaire rendu distinctement (or, pointillé, halo), ligne de portée du
 Grappin, traînée sur le projectile Ricochet, `prefers-reduced-motion` respecté.
 
-**Reste à faire dans P2 (polish, pas bloquant)** : sortir le bot dans un Web
-Worker (aujourd'hui ~250 ms de calcul synchrone au niveau 2, différés d'un tick) ;
-passer le rendu sur PixiJS si le Canvas 2D montre ses limites ; équilibrage réel
-des 6 héros par des parties.
+**Bot dans un Web Worker (fait 2026-09-11)** : `pickOrder` (pur, sans DOM)
+tourne maintenant dans `src/game/bot.worker.ts`, appelé via `BotClient`
+(`src/game/bot-client.ts`) depuis `match.ts` — ne bloque plus le thread
+principal (le niveau Coriace, le plus lourd, ne gèle plus le rendu). Vite le
+bundle en chunk séparé (`dist/assets/bot.worker-*.js`).
+
+**Reste à faire dans P2 (polish, pas bloquant)** : passer le rendu sur PixiJS
+si le Canvas 2D montre ses limites ; équilibrage réel des 8 héros par des
+parties.
 
 ---
 
