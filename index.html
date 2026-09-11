@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ricochet</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body>
+    <main id="app">
+      <header>
+        <h1>RICO<b>CHET</b> <span>mode Contrôle</span></h1>
+        <button id="btnMute" title="Son">🔊</button>
+      </header>
+
+      <div id="stagewrap">
+        <canvas id="stage" width="960" height="600"></canvas>
+
+        <div id="hud" hidden>
+          <div class="hud-top">
+            <div class="score score-a">
+              <span class="who" id="whoA">Toi</span>
+              <b id="hold0">0</b>
+              <div class="mom" id="mom0"><i></i><i></i><i></i><i></i><i></i></div>
+            </div>
+            <div class="mid">
+              <span id="turnlabel"></span>
+              <span id="prompt"></span>
+              <div class="timerwrap"><span id="timerbar"></span></div>
+            </div>
+            <div class="score score-b">
+              <span class="who" id="whoB">Bot</span>
+              <b id="hold1">0</b>
+              <div class="mom" id="mom1"><i></i><i></i><i></i><i></i><i></i></div>
+            </div>
+          </div>
+
+          <div class="actionbar" id="actionbar">
+            <div class="ab-main" id="abMain">
+              <div class="ab-head">
+                <span class="ab-name" id="abName">Choisis un héros</span>
+                <span class="ab-arch" id="abArch"></span>
+              </div>
+              <button class="ab-active" id="abActive" type="button" hidden>
+                <kbd>A</kbd>
+                <span class="ab-aname" id="abAName"></span>
+                <span class="ab-cost" id="abCost"></span>
+                <span class="ab-mom" id="abMom" title="Momentum de ton équipe">
+                  <i></i><i></i><i></i><i></i><i></i>
+                </span>
+              </button>
+              <div class="ab-kit" id="abKit" hidden>
+                <p class="ab-line"><span class="ab-tag">de base</span><em id="abBase"></em></p>
+                <p class="ab-eff" id="abAEffect"></p>
+              </div>
+              <p class="ab-hint" id="abHint">
+                Glisse depuis un héros pour viser · <b>1 / 2 / 3</b> pour choisir · <b>A</b> arme la capacité
+              </p>
+            </div>
+            <div class="ab-tail">
+              <button id="btnHold" type="button">Passer</button>
+              <span id="timer"></span>
+            </div>
+          </div>
+        </div>
+
+        <div id="overlay" hidden></div>
+      </div>
+
+      <p class="hint">
+        <b>Attrape</b> un héros et <b>glisse</b> pour viser, <b>lâche</b> pour tirer.
+        <b>Clic gauche</b> = lancer normal · <b>clic droit</b> = lancer avec la
+        capacité (elle coûte du Momentum). Au clavier, <b>A</b> arme la capacité
+        pour le tour. <b>Espace</b> passe l'animation.
+        <a href="./docs/ricochet-playbook.html">bible</a> ·
+        <a href="./docs/PHASES.md">phases</a>
+      </p>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

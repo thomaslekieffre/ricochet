@@ -1,0 +1,948 @@
+<title>Ricochet Playbook</title>
+<meta name="description" content="Bible de conception d'un brawler 1v1 compétitif dans le navigateur : planification simultanée, knockback, saisons classées." />
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" />
+
+<style>
+  :root {
+    --bg: #f4f2f7;
+    --surface: #ffffff;
+    --surface-2: #ece9f2;
+    --ink: #191622;
+    --muted: #6a6377;
+    --line: #dbd6e4;
+    --impact: #e5402a;
+    --momentum: #2e63f0;
+    --good: #1fa971;
+    --warn: #c07e00;
+    --shadow: rgba(25, 22, 34, 0.1);
+    --arena: #1b1826;
+    --arena-line: #322d42;
+
+    --maxw: 880px;
+    --step: clamp(1rem, 0.6rem + 1.6vw, 1.4rem);
+
+    --f-display: "Chakra Petch", "Arial Narrow", system-ui, sans-serif;
+    --f-body: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+    --f-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #141220;
+      --surface: #1e1b2c;
+      --surface-2: #262234;
+      --ink: #ece9f2;
+      --muted: #9a93ac;
+      --line: #322d42;
+      --impact: #ff6146;
+      --momentum: #6e9bff;
+      --good: #35c98d;
+      --warn: #f0a83a;
+      --shadow: rgba(0, 0, 0, 0.45);
+      --arena: #0f0d18;
+      --arena-line: #2a2640;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #141220;
+    --surface: #1e1b2c;
+    --surface-2: #262234;
+    --ink: #ece9f2;
+    --muted: #9a93ac;
+    --line: #322d42;
+    --impact: #ff6146;
+    --momentum: #6e9bff;
+    --good: #35c98d;
+    --warn: #f0a83a;
+    --shadow: rgba(0, 0, 0, 0.45);
+    --arena: #0f0d18;
+    --arena-line: #2a2640;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--f-body);
+    font-size: 17px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: var(--maxw);
+    margin: 0 auto;
+    padding: 0 clamp(1.1rem, 0.4rem + 3vw, 2.4rem);
+  }
+
+  /* ---------- top bar ---------- */
+  .top {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: var(--bg);
+    border-bottom: 1px solid var(--line);
+  }
+  .top .wrap {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    min-height: 54px;
+  }
+  .brand {
+    font-family: var(--f-display);
+    font-weight: 700;
+    letter-spacing: 0.13em;
+    font-size: 0.95rem;
+    text-transform: uppercase;
+  }
+  .brand b { color: var(--impact); font-weight: 700; }
+  .brand span {
+    color: var(--muted);
+    font-family: var(--f-mono);
+    font-weight: 400;
+    letter-spacing: 0.04em;
+    font-size: 0.68rem;
+    text-transform: none;
+  }
+  .top nav {
+    display: flex;
+    gap: 0.15rem;
+    flex-wrap: wrap;
+  }
+  .top nav a {
+    font-family: var(--f-mono);
+    font-size: 0.74rem;
+    color: var(--muted);
+    text-decoration: none;
+    padding: 0.25rem 0.4rem;
+    border-radius: 4px;
+  }
+  .top nav a:hover { color: var(--ink); background: var(--surface-2); }
+  @media (max-width: 720px) { .top nav { display: none; } }
+
+  /* ---------- hero ---------- */
+  .hero { padding: clamp(2.4rem, 1rem + 6vw, 4.6rem) 0 2.4rem; }
+  .kicker {
+    font-family: var(--f-mono);
+    font-size: 0.78rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--impact);
+    margin: 0 0 1rem;
+  }
+  h1.title {
+    font-family: var(--f-display);
+    font-weight: 700;
+    font-size: clamp(2.7rem, 1.2rem + 7vw, 5.4rem);
+    line-height: 0.95;
+    letter-spacing: 0.01em;
+    text-transform: uppercase;
+    text-wrap: balance;
+    margin: 0 0 1rem;
+  }
+  h1.title .cut { color: var(--impact); }
+  .tagline {
+    font-size: clamp(1.05rem, 0.9rem + 0.7vw, 1.3rem);
+    color: var(--muted);
+    max-width: 40ch;
+    margin: 0;
+  }
+
+  figure.arenafig {
+    margin: 2.6rem 0 0;
+    border: 1px solid var(--arena-line);
+    border-radius: 10px;
+    overflow: hidden;
+    background: var(--arena);
+  }
+  figure.arenafig canvas { display: block; width: 100%; height: 240px; }
+  figure.arenafig figcaption {
+    font-family: var(--f-mono);
+    font-size: 0.74rem;
+    letter-spacing: 0.04em;
+    color: #9a93ac;
+    padding: 0.6rem 0.9rem;
+    border-top: 1px solid var(--arena-line);
+    background: var(--arena);
+  }
+  figure.arenafig figcaption b { color: var(--impact); font-weight: 600; }
+
+  /* ---------- locked decisions ---------- */
+  .locked {
+    margin: 2.6rem 0 0;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--impact);
+    border-radius: 8px;
+    padding: 1.3rem 1.4rem;
+  }
+  .locked h2 {
+    font-family: var(--f-mono);
+    font-size: 0.78rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 0.9rem;
+  }
+  .locked ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 0.5rem 1.6rem;
+  }
+  .locked li {
+    font-family: var(--f-mono);
+    font-size: 0.83rem;
+    line-height: 1.5;
+    padding-left: 1.3rem;
+    position: relative;
+    color: var(--ink);
+  }
+  .locked li::before {
+    content: "\2713";
+    position: absolute;
+    left: 0;
+    color: var(--good);
+    font-weight: 600;
+  }
+  .locked li b { color: var(--muted); font-weight: 500; }
+
+  /* ---------- sections ---------- */
+  section { padding: clamp(2.6rem, 1.4rem + 4vw, 4.4rem) 0; border-top: 1px solid var(--line); scroll-margin-top: 70px; }
+  .sechead { display: flex; align-items: baseline; gap: 1rem; margin: 0 0 1.6rem; }
+  .sechead .num {
+    font-family: var(--f-display);
+    font-weight: 700;
+    font-size: clamp(1.3rem, 0.9rem + 1.6vw, 2rem);
+    color: var(--impact);
+    letter-spacing: 0.02em;
+  }
+  .sechead h2 {
+    font-family: var(--f-display);
+    font-weight: 600;
+    font-size: clamp(1.55rem, 1rem + 2.3vw, 2.4rem);
+    line-height: 1.05;
+    text-transform: uppercase;
+    letter-spacing: 0.01em;
+    margin: 0;
+    text-wrap: balance;
+  }
+
+  p { max-width: 66ch; }
+  p + p { margin-top: 1rem; }
+  .lead { font-size: 1.1rem; color: var(--ink); }
+  strong { font-weight: 600; }
+  em.term { font-style: normal; color: var(--impact); font-weight: 600; }
+  a.inline { color: var(--momentum); text-decoration: none; border-bottom: 1px solid color-mix(in srgb, var(--momentum) 40%, transparent); }
+  a.inline:hover { border-bottom-color: var(--momentum); }
+
+  h3 {
+    font-family: var(--f-display);
+    font-weight: 600;
+    font-size: 1.15rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    margin: 2.2rem 0 0.7rem;
+  }
+
+  /* ---------- turn steps ---------- */
+  .steps { display: grid; gap: 0.9rem; margin: 1.6rem 0 0; counter-reset: st; }
+  .steps li {
+    list-style: none;
+    display: grid;
+    grid-template-columns: 2.4rem 1fr;
+    gap: 1rem;
+    align-items: start;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 1rem 1.1rem;
+  }
+  .steps li::before {
+    counter-increment: st;
+    content: counter(st, decimal-leading-zero);
+    font-family: var(--f-mono);
+    font-size: 0.9rem;
+    color: var(--impact);
+    padding-top: 0.15rem;
+  }
+  .steps b { font-family: var(--f-display); font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; font-size: 0.95rem; }
+  .steps p { margin: 0.25rem 0 0; font-size: 0.95rem; color: var(--muted); max-width: none; }
+  .steps .t { font-family: var(--f-mono); font-size: 0.72rem; color: var(--momentum); float: right; }
+
+  /* ---------- spec table ---------- */
+  .specwrap { overflow-x: auto; margin: 1.6rem 0 0; }
+  table.spec { border-collapse: collapse; width: 100%; font-size: 0.92rem; min-width: 480px; }
+  table.spec th, table.spec td { text-align: left; padding: 0.7rem 0.9rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+  table.spec th {
+    font-family: var(--f-mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 500;
+  }
+  table.spec td.k { font-family: var(--f-display); font-weight: 600; text-transform: uppercase; letter-spacing: 0.02em; white-space: nowrap; }
+  table.spec tr:last-child td { border-bottom: none; }
+  table.spec .n { font-family: var(--f-mono); font-variant-numeric: tabular-nums; color: var(--momentum); }
+
+  /* ---------- hero cards ---------- */
+  .roster { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; margin: 1.6rem 0 0; }
+  .hcard {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-top: 3px solid var(--chip);
+    border-radius: 8px;
+    padding: 1.15rem 1.2rem 1.3rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+  }
+  .arch-brawler { --chip: var(--impact); }
+  .arch-dasher { --chip: var(--momentum); }
+  .arch-sniper { --chip: var(--good); }
+  .arch-mage { --chip: var(--warn); }
+  .hcard .hn { display: flex; align-items: baseline; justify-content: space-between; gap: 0.6rem; }
+  .hcard h3 { font-size: 1.3rem; margin: 0; letter-spacing: 0.04em; }
+  .hcard .chip {
+    font-family: var(--f-mono);
+    font-size: 0.64rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--chip);
+    border: 1px solid color-mix(in srgb, var(--chip) 45%, transparent);
+    border-radius: 999px;
+    padding: 0.12rem 0.5rem;
+    white-space: nowrap;
+  }
+  .hcard .oneline { font-size: 0.9rem; color: var(--muted); font-style: italic; margin: 0; max-width: none; }
+  .meters { display: grid; gap: 0.35rem; margin: 0.3rem 0 0.2rem; }
+  .meter { display: grid; grid-template-columns: 5.5rem 1fr; align-items: center; gap: 0.6rem; }
+  .meter span { font-family: var(--f-mono); font-size: 0.66rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+  .meter .bar { display: flex; gap: 3px; }
+  .meter .bar i { height: 7px; flex: 1; background: var(--surface-2); border-radius: 1px; }
+  .meter .bar i.on { background: var(--chip); }
+  .hcard dl { margin: 0.4rem 0 0; display: grid; gap: 0.4rem; }
+  .hcard dt { font-family: var(--f-mono); font-size: 0.64rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--chip); }
+  .hcard dd { margin: 0.05rem 0 0; font-size: 0.86rem; line-height: 1.5; }
+  .hcard dd .cost { font-family: var(--f-mono); font-size: 0.74rem; color: var(--momentum); }
+
+  /* ---------- arenas ---------- */
+  .arenas { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 1rem; margin: 1.6rem 0 0; }
+  .acard { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 1.1rem 1.15rem; }
+  .acard h3 { margin: 0 0 0.3rem; font-size: 1.05rem; }
+  .acard .tag { font-family: var(--f-mono); font-size: 0.66rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+  .acard p { font-size: 0.88rem; color: var(--muted); margin: 0.55rem 0 0; max-width: none; }
+  .acard.def { border-left: 3px solid var(--good); }
+
+  /* ---------- tiers ---------- */
+  .tierbar { display: flex; gap: 3px; margin: 1.4rem 0 0.5rem; }
+  .tierbar div {
+    flex: 1;
+    text-align: center;
+    font-family: var(--f-mono);
+    font-size: 0.66rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 0.5rem 0.2rem;
+    color: #fff;
+    border-radius: 3px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .tierbar .t1 { background: #7c5a3a; }
+  .tierbar .t2 { background: #8a8f99; }
+  .tierbar .t3 { background: #c69528; }
+  .tierbar .t4 { background: #3c8f8a; }
+  .tierbar .t5 { background: #3d6fd6; }
+  .tierbar .t6 { background: #7b3fd0; }
+  .tierbar .t7 { background: var(--impact); }
+  .tiernote { font-family: var(--f-mono); font-size: 0.74rem; color: var(--muted); margin: 0; }
+
+  /* ---------- generic list ---------- */
+  ul.plain { padding-left: 1.1rem; max-width: 66ch; }
+  ul.plain li { margin: 0.4rem 0; }
+  ul.plain li::marker { color: var(--impact); }
+
+  /* ---------- roadmap ---------- */
+  .road { display: grid; gap: 0.7rem; margin: 1.6rem 0 0; counter-reset: ph; }
+  .road li {
+    list-style: none;
+    display: grid;
+    grid-template-columns: 2.6rem 1fr auto;
+    gap: 1rem;
+    align-items: baseline;
+    padding: 1rem 1.1rem;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+  }
+  .road li::before {
+    counter-increment: ph;
+    content: "P" counter(ph);
+    font-family: var(--f-display);
+    font-weight: 700;
+    color: var(--impact);
+    font-size: 0.95rem;
+  }
+  .road b { font-family: var(--f-display); font-weight: 600; text-transform: uppercase; letter-spacing: 0.02em; font-size: 0.98rem; display: block; }
+  .road p { margin: 0.2rem 0 0; font-size: 0.9rem; color: var(--muted); max-width: none; }
+  .road .dur { font-family: var(--f-mono); font-size: 0.72rem; color: var(--momentum); white-space: nowrap; }
+  @media (max-width: 560px) {
+    .road li { grid-template-columns: 2.4rem 1fr; }
+    .road .dur { grid-column: 2; }
+  }
+
+  /* ---------- open questions ---------- */
+  .open { background: var(--surface-2); border-radius: 8px; padding: 1.3rem 1.4rem; margin: 1.6rem 0 0; }
+  .open h3 { margin: 0 0 0.6rem; }
+  .open ul { margin: 0; padding-left: 1.1rem; }
+  .open li { margin: 0.4rem 0; font-size: 0.94rem; }
+  .open code {
+    font-family: var(--f-mono);
+    font-size: 0.82rem;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 0.05rem 0.35rem;
+  }
+
+  footer {
+    border-top: 1px solid var(--line);
+    padding: 2rem 0 3rem;
+    font-family: var(--f-mono);
+    font-size: 0.74rem;
+    color: var(--muted);
+  }
+
+  :focus-visible { outline: 2px solid var(--momentum); outline-offset: 2px; border-radius: 2px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+  }
+</style>
+
+<header class="top">
+  <div class="wrap">
+    <div class="brand"><b>Ricochet</b> Playbook <span>&nbsp;titre de travail</span></div>
+    <nav>
+      <a href="#vision">00</a>
+      <a href="#tour">01</a>
+      <a href="#gagner">02</a>
+      <a href="#heros">03</a>
+      <a href="#arenes">04</a>
+      <a href="#classe">05</a>
+      <a href="#ladder">06</a>
+      <a href="#archi">07</a>
+      <a href="#roadmap">08</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="hero">
+    <p class="kicker">Bible de conception &mdash; v0.1</p>
+    <h1 class="title">Planifie.<br />Percute.<br /><span class="cut">Éjecte.</span></h1>
+    <p class="tagline">Un brawler 1v1 dans le navigateur. Tour par tour à résolution simultanée, physique de knockback, ladder à saisons.</p>
+
+    <figure class="arenafig">
+      <canvas id="arena" width="880" height="240" aria-hidden="true"></canvas>
+      <figcaption>Le verbe central&nbsp;: tout est <b>knockback</b>. On ne grignote pas des PV &mdash; on projette l'adversaire hors de l'arène.</figcaption>
+    </figure>
+
+    <div class="locked">
+      <h2>Décisions verrouillées</h2>
+      <ul>
+        <li>Modèle&nbsp;: <b>planif simultanée + résolution simultanée</b> (façon BUMP)</li>
+        <li>Cœur&nbsp;: <b>knockback / éjection</b>, physique déterministe</li>
+        <li>KO&nbsp;: <b>respawn</b>, point à l'adversaire</li>
+        <li>Équipe&nbsp;: <b>3 héros</b>, 1 exemplaire chacun</li>
+        <li>Minuteur de tour&nbsp;: <b>8 secondes</b></li>
+        <li>Roster au lancement&nbsp;: <b>6 héros</b>, +1&ndash;2 par saison</li>
+        <li>Visée&nbsp;: <b>angle + jauge de puissance</b></li>
+        <li>Arènes au lancement&nbsp;: <b>3 à 4</b>, pièges distincts</li>
+        <li>Tous les héros gratuits pour tous &mdash; <b>zéro pay-to-win</b></li>
+        <li>Classé&nbsp;: <b>Glicko-2</b>, saisons de 8 semaines</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <section id="vision">
+    <div class="sechead"><span class="num">00</span><h2>Vision</h2></div>
+    <p class="lead">On refait ce qui rendait <a class="inline" href="https://store.steampowered.com/app/2887910/BUMP_Superbrawl/">BUMP! Superbrawl</a> aussi bon, dans un jeu qui vit dans un onglet et se joue en compétition classée.</p>
+    <p>Deux joueurs, une arène bordée vue de dessus, une équipe de trois héros chacun. À chaque tour, les deux planifient <strong>à l'aveugle</strong> pendant 8&nbsp;secondes&nbsp;: tu choisis <strong>un seul</strong> héros, tu vises, il se déplace puis frappe. Les deux plans se révèlent et se résolvent <strong>en même temps</strong>. Puis on regarde le chaos se dérouler ensemble.</p>
+    <p>Ce qu'on garde de BUMP&nbsp;: le plaisir n'est pas dans une barre de vie qui descend, il est dans le <em class="term">choc</em> &mdash; envoyer l'autre dans le vide, dans un mur, dans son propre coéquipier. Une décision par tour, lisible, mais profonde parce qu'on joue contre la lecture de l'adversaire.</p>
+    <p>Ce qu'on ajoute&nbsp;: intégrité compétitive de bout en bout. Physique déterministe, serveur autoritatif, tout le roster accessible à tout le monde, un ladder Glicko-2 et des saisons. Cible de session&nbsp;: <strong>match de 3 minutes</strong>, une partie se lance en deux clics.</p>
+  </section>
+
+  <section id="tour">
+    <div class="sechead"><span class="num">01</span><h2>Le tour</h2></div>
+    <p>Le cycle dure quelques secondes et se répète jusqu'à la fin du match. Si les deux joueurs valident avant la fin du minuteur, la résolution se déclenche immédiatement &mdash; les parties ne traînent jamais.</p>
+    <ol class="steps">
+      <li>
+        <div>
+          <b>Planification <span class="t">8 s</span></b>
+          <p>Chaque joueur choisit 1 héros parmi ses 3, trace un vecteur de déplacement (angle) et dose la distance sur une <strong>jauge de puissance</strong>. L'attaque qui suit le déplacement est automatique et dépend du héros. Plans cachés.</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <b>Révélation</b>
+          <p>Les deux ordres s'affichent en même temps. Aucun joueur n'a agi «&nbsp;avant&nbsp;» l'autre.</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <b>Résolution simultanée <span class="t">~2,5 s</span></b>
+          <p>Le serveur simule le tour d'un bloc&nbsp;: déplacements, collisions entre corps, rebonds sur murs et pièges, attaques, knockback en chaîne. Sous-pas fixe à 60&nbsp;Hz, maths en point fixe &mdash; strictement déterministe.</p>
+        </div>
+      </li>
+      <li>
+        <div>
+          <b>Animation &amp; bilan</b>
+          <p>Les clients rejouent les images-clés renvoyées par le serveur. Contrôle de la zone compté, KO &rarr; respawns programmés, Momentum regagné (+1 par tour, plafond 5). Tour suivant.</p>
+        </div>
+      </li>
+    </ol>
+  </section>
+
+  <section id="gagner">
+    <div class="sechead"><span class="num">02</span><h2>Gagner &mdash; mode Contrôle</h2></div>
+    <p>Une seule chose compte&nbsp;: <strong>tenir la zone</strong>. Le knockback et les KO ne sont pas la condition de victoire &mdash; ce sont les outils pour vider la zone adverse et y caler tes héros.</p>
+    <div class="specwrap">
+      <table class="spec">
+        <tr><th>Événement</th><th>Effet</th></tr>
+        <tr><td class="k">Contrôle</td><td>À la fin de chaque tour, le camp qui a <strong>strictement plus</strong> de héros vivants dans la zone centrale marque <span class="n">+1</span>. Égalité (y compris 0&ndash;0)&nbsp;: personne.</td></tr>
+        <tr><td class="k">KO</td><td>Un héros éjecté de l'arène <strong>respawn</strong> à sa ligne de fond après 1&nbsp;tour (inélectable ce tour-là). Pas de point direct &mdash; mais un héros au vestiaire ne conteste pas la zone. Gros tempo.</td></tr>
+        <tr><td class="k">Fin</td><td>Premier à <span class="n">15</span>, ou meilleur score à <span class="n">60</span>&nbsp;tours.</td></tr>
+        <tr><td class="k">Mort subite</td><td>À 60&nbsp;tours sur égalité&nbsp;: la zone rétrécit à chaque tour jusqu'à ce qu'un camp prenne l'avantage.</td></tr>
+      </table>
+    </div>
+    <p>Terrain de jeu&nbsp;: <span class="n" style="font-family:var(--f-mono)">1600 &times; 1000 u</span>, zone centrale rayon <span class="n" style="font-family:var(--f-mono)">180 u</span>, rayon de héros <span class="n" style="font-family:var(--f-mono)">38&ndash;50 u</span> selon le héros. Sortir d'un bord = KO, peu importe la cause (poussé, rebondi, tapis roulant).</p>
+  </section>
+
+  <section id="heros">
+    <div class="sechead"><span class="num">03</span><h2>Les héros</h2></div>
+    <p>Quatre archétypes, six héros au lancement. Chacun a une <strong>attaque de base</strong> gratuite, une <strong>active</strong> qui coûte du <em class="term">Momentum</em> (jauge qui monte de +1 à chaque tour, plafond 5), et une <strong>passive</strong>. Le roster gagne un héros par saison.</p>
+
+    <div class="roster">
+
+      <article class="hcard arch-brawler">
+        <div class="hn"><h3>Boulder</h3><span class="chip">Brawler</span></div>
+        <p class="oneline">Frappe comme un éboulement. Se déplace comme un éboulement aussi.</p>
+        <div class="meters">
+          <div class="meter"><span>Masse</span><div class="bar"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></div></div>
+          <div class="meter"><span>Mobilité</span><div class="bar"><i class="on"></i><i></i><i></i><i></i><i></i></div></div>
+          <div class="meter"><span>Portée</span><div class="bar"><i class="on"></i><i></i><i></i><i></i><i></i></div></div>
+          <div class="meter"><span>Knockback</span><div class="bar"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></div></div>
+        </div>
+        <dl>
+          <div><dt>Base &mdash; Slam</dt><dd>Poussée au contact, knockback massif dans la direction visée.</dd></div>
+          <div><dt>Active &mdash; Quake <span class="cost">3</span></dt><dd>Onde radiale&nbsp;: repousse tous les corps dans un rayon de 220&nbsp;u.</dd></div>
+          <div><dt>Passive &mdash; Inébranlable</dt><dd>Subit 30&nbsp;% de knockback en moins.</dd></div>
+        </dl>
+      </article>
+
+      <article class="hcard arch-brawler">
+        <div class="hn"><h3>Ram</h3><span class="chip">Brawler</span></div>
+        <p class="oneline">Plus l'élan est long, plus l'impact est lourd.</p>
+        <div class="meters">
+          <div class="meter"><span>Masse</span><div class="bar"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i></div></div>
+          <div class="meter"><span>Mobilité</span><div class="bar"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></div></div>
+          <div class="meter"><span>Portée</span><div class="bar"><i class="on"></i><i></i><i></i><i></i><i></i></div></div>
+          <div class="meter"><span>Knockback</span><div class="bar"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i></div></div>
+        </div>
+        <dl>
+          <div><dt>Base &mdash; Charge</dt><dd>Le knockback augmente avec la distance parcourue ce tour (la jauge de puissance compte double).</dd></div>
+          <div><dt>Active &mdash; Second Souffle <span class="cost">2</span></dt><dd>Se repositionne de 120&nbsp;u juste après la résolution.</dd></div>
+          <div><dt>Passive &mdash; Cornes</dt><dd>Un KO rembourse tout le Momentum.</dd></div>
+        </dl>
+      </article>
+
+      <article class="hcard arch-dasher">
+        <div class="hn"><h3>Comet</h3><span class="chip">Dasher</span></div>
+        <p class="oneline">Traverse tout le monde et les laisse en toupie.</p>
+        <div class="meters">
+          <div class="meter"><span>Masse</span><div class="bar"><i class="on"></i><i></i><i></i><i></i><i></i></div></div>
+          <div class="meter"><span>Mobilité</span><div class="bar"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></div></div>
+          <div class="meter"><span>Portée</span><div class="bar"><i class="on"></i><i class="on"></i><i></i><i></i><i></i></div></div>
+          <div class="meter"><span>Knockback</span><div class="bar"><i class="on"></i><i class="on"></i><i></i><i></i><i></i></div></div>
+        </div>
+        <dl>
+          <div><dt>Base &mdash; Dash</dt><dd>Se déplace <em>à travers</em> les corps, bousculant légèrement chacun sur son passage.</dd></div>
+          <div><dt>Active &mdash; Sillage <span class="cost">2</span></dt><dd>Inciblable et non-bumpable pendant ce tour.</dd></div>
+          <div><dt>Passive &mdash; Aspiration</dt><dd>+1 Momentum par corps traversé.</dd></div>
+        </dl>
+      </article>
+
+      <article class="hcard arch-dasher">
+        <div class="hn"><h3>Hook</h3><span class="chip">Dasher</span></div>
+        <p class="oneline">Ne te pousse pas dehors &mdash; te tire dedans.</p>
+        <div class="meters">
+          <div class="meter"><span>Masse</span><div class="bar"><i class="on"></i><i class="on"></i><i></i><i></i><i></i></div></div>
+          <div class="meter"><span>Mobilité</span><div class="bar"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i></div></div>
+          <div class="meter"><span>Portée</span><div class="bar"><i class="on"></i><i class="on"></i><i></i><i></i><i></i></div></div>
+          <div class="meter"><span>Knockback</span><div class="bar"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></div></div>
+        </div>
+        <dl>
+          <div><dt>Base &mdash; Accroche</dt><dd>Dash&nbsp;; au contact, <strong>tire</strong> la cible jusqu'au point d'arrivée de Hook au lieu de la pousser.</dd></div>
+          <div><dt>Active &mdash; Grappin <span class="cost">3</span></dt><dd>Prise à distance&nbsp;: ramène un corps de 240&nbsp;u vers Hook.</dd></div>
+          <div><dt>Passive &mdash; Pied sûr</dt><dd>Ignore les tapis roulants, franchit les trous.</dd></div>
+        </dl>
+      </article>
+
+      <article class="hcard arch-sniper">
+        <div class="hn"><h3>Sling</h3><span class="chip">Sniper</span></div>
+        <p class="oneline">Ne bouge jamais. Ne rate jamais.</p>
+        <div class="meters">
+          <div class="meter"><span>Masse</span><div class="bar"><i class="on"></i><i></i><i></i><i></i><i></i></div></div>
+          <div class="meter"><span>Mobilité</span><div class="bar"><i class="on"></i><i class="on"></i><i></i><i></i><i></i></div></div>
+          <div class="meter"><span>Portée</span><div class="bar"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></div></div>
+          <div class="meter"><span>Knockback</span><div class="bar"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></div></div>
+        </div>
+        <dl>
+          <div><dt>Base &mdash; Tir</dt><dd>Projectile en ligne, repousse le premier corps touché. La jauge de puissance = portée du tir.</dd></div>
+          <div><dt>Active &mdash; Ricochet <span class="cost">3</span></dt><dd>Le projectile rebondit une fois sur un mur.</dd></div>
+          <div><dt>Passive &mdash; Guet</dt><dd>+50&nbsp;% de knockback si Sling n'a pas bougé au tour précédent.</dd></div>
+        </dl>
+      </article>
+
+      <article class="hcard arch-mage">
+        <div class="hn"><h3>Prism</h3><span class="chip">Mage</span></div>
+        <p class="oneline">Prépare le plateau avant que le plateau bouge.</p>
+        <div class="meters">
+          <div class="meter"><span>Masse</span><div class="bar"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></div></div>
+          <div class="meter"><span>Mobilité</span><div class="bar"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></div></div>
+          <div class="meter"><span>Portée</span><div class="bar"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></div></div>
+          <div class="meter"><span>Knockback</span><div class="bar"><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></div></div>
+        </div>
+        <dl>
+          <div><dt>Base &mdash; Éclat</dt><dd>Place une charge qui détone au tour suivant&nbsp;: poussée radiale.</dd></div>
+          <div><dt>Active &mdash; Mur <span class="cost">2</span></dt><dd>Barrière temporaire (2 tours) qui bloque et fait rebondir.</dd></div>
+          <div><dt>Passive &mdash; Prescience</dt><dd>Voit la jauge de Momentum de l'adversaire.</dd></div>
+        </dl>
+      </article>
+
+    </div>
+
+    <h3>Draft en classé</h3>
+    <p>Tout le roster est disponible pour les deux joueurs &mdash; aucune collection, aucun déblocage. En Saison&nbsp;0 (roster de 6, équipe de 3), pas de draft&nbsp;: on équilibre la base. Dès le roster à 8&nbsp;: <strong>ban 1&nbsp;/&nbsp;1</strong>, puis <strong>pick alterné</strong> jusqu'à 3 chacun. C'est là que la méta prend de l'épaisseur.</p>
+  </section>
+
+  <section id="arenes">
+    <div class="sechead"><span class="num">04</span><h2>Les arènes</h2></div>
+    <p>Trois à quatre au lancement. Même terrain de base, pièges différents qui changent radicalement les lignes de jeu.</p>
+    <div class="arenas">
+      <div class="acard def">
+        <span class="tag">arène par défaut</span>
+        <h3>Carrefour</h3>
+        <p>Rectangle propre, aucun piège. La référence pour l'entraînement, le compétitif et l'équilibrage.</p>
+      </div>
+      <div class="acard">
+        <span class="tag">tapis roulants</span>
+        <h3>Fonderie</h3>
+        <p>Deux bandes latérales qui poussent vers des brèches ouvertes au centre. Se coller aux bords devient mortel.</p>
+      </div>
+      <div class="acard">
+        <span class="tag">bumpers</span>
+        <h3>Flipper</h3>
+        <p>Quatre plots élastiques près du centre qui ajoutent du knockback à chaque contact. Les trajectoires deviennent chaotiques &mdash; ou exploitables.</p>
+      </div>
+      <div class="acard">
+        <span class="tag">arène qui s'effondre</span>
+        <h3>Gouffre</h3>
+        <p>Les bords se rétractent vers l'intérieur au fil du match. Force l'agression, garantit une fin.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="classe">
+    <div class="sechead"><span class="num">05</span><h2>Classé &amp; saisons</h2></div>
+    <p>Note cachée en <strong>Glicko-2</strong> (meilleure que l'Elo pour gérer l'incertitude et l'inactivité). 10 matchs de placement, puis un rang affiché.</p>
+    <div class="tierbar" role="img" aria-label="Paliers : Bronze, Argent, Or, Platine, Diamant, Master, Élite">
+      <div class="t1">Bronze</div>
+      <div class="t2">Argent</div>
+      <div class="t3">Or</div>
+      <div class="t4">Platine</div>
+      <div class="t5">Diamant</div>
+      <div class="t6">Master</div>
+      <div class="t7">Élite</div>
+    </div>
+    <p class="tiernote">Élite = top 500 mondial, ladder nominatif. Decay Diamant et plus.</p>
+    <ul class="plain">
+      <li><strong>Saison = 8 semaines.</strong> Soft reset&nbsp;: compression vers 1500, pas de remise à zéro brutale.</li>
+      <li><strong>Récompenses attribuées sur le pic de note</strong>, jamais la note finale &mdash; pour éviter le «&nbsp;j'atteins mon rang et j'arrête&nbsp;».</li>
+      <li><strong>Cosmétiques uniquement</strong>&nbsp;: skins de héros, skins d'arène, bordures de profil animées, titre de saison. Jamais de puissance à vendre.</li>
+      <li><strong>Anti-smurf</strong>&nbsp;: nouveau compte = forte incertitude Glicko &rarr; rejoint son vrai niveau en ~15 matchs.</li>
+    </ul>
+  </section>
+
+  <section id="ladder">
+    <div class="sechead"><span class="num">06</span><h2>Au-delà du ladder</h2></div>
+    <p>Le classé retient le top 5&nbsp;%. Le reste a besoin d'autre chose.</p>
+    <ul class="plain">
+      <li><strong>Niveau de compte</strong> via XP, tous modes confondus.</li>
+      <li><strong>Pass de saison</strong>&nbsp;: piste gratuite + piste premium, débloque skins et arènes.</li>
+      <li><strong>File non classée</strong> permanente + <strong>mode mutateur hebdo</strong> en rotation (arène géante, double Momentum, roster imposé&hellip;).</li>
+      <li><strong>Bots d'entraînement</strong> + tutoriel pour l'onboarding.</li>
+      <li><strong>Replays partageables</strong> et <strong>spectate</strong> &mdash; fichiers minuscules&nbsp;: juste le log d'ordres, rejoué par le moteur déterministe.</li>
+      <li><strong>Défis d'amis</strong> et lobbies privés.</li>
+      <li>Plus tard&nbsp;: tournois in-client, clubs / équipes.</li>
+    </ul>
+  </section>
+
+  <section id="archi">
+    <div class="sechead"><span class="num">07</span><h2>Architecture</h2></div>
+    <p class="lead">Le seul vrai piège&nbsp;: dans un jeu classé où la physique décide des KO, client et serveur doivent calculer <strong>exactement</strong> la même trajectoire, au bit près.</p>
+    <h3>Le moteur</h3>
+    <ul class="plain">
+      <li><strong>Pas de moteur physique tiers.</strong> Solveur maison collision-de-cercles + impulsions. Peu de corps (6), plateau petit, simulation par salves discrètes seulement pendant la résolution.</li>
+      <li><strong>Point fixe</strong> (Q16.16, entiers) pour tous les vecteurs &mdash; déterminisme strict sur toutes les machines et tous les navigateurs.</li>
+      <li>Pas fixe à 60&nbsp;Hz, collisions résolues dans l'ordre croissant des identifiants d'entité. Fenêtre de résolution ~2,5&nbsp;s &rarr; ~150&nbsp;pas, puis images-clés diffusées aux clients.</li>
+      <li><strong>Serveur autoritatif</strong>&nbsp;: les deux envoient <code style="font-family:var(--f-mono);font-size:.85em">(héros, vecteur, puissance)</code>, le serveur simule, renvoie le résultat. Triche impossible, aucun rollback nécessaire.</li>
+    </ul>
+    <h3>La stack</h3>
+    <div class="specwrap">
+      <table class="spec">
+        <tr><th>Couche</th><th>Choix</th></tr>
+        <tr><td class="k">Client</td><td>TypeScript + Vite, rendu <strong>PixiJS</strong>. État reçu du serveur, animation/prédiction locale.</td></tr>
+        <tr><td class="k">Résolveur</td><td>Fonction pure <strong>partagée client/serveur</strong>&nbsp;: <code style="font-family:var(--f-mono);font-size:.85em">resolve(state, ordreA, ordreB)</code>.</td></tr>
+        <tr><td class="k">Temps réel</td><td>WebSocket simple. Pas besoin d'UDP/WebRTC vu la cadence par tour.</td></tr>
+        <tr><td class="k">Serveur de jeu</td><td><strong>Bun</strong> + <code style="font-family:var(--f-mono);font-size:.85em">ws</code>. Un process héberge N&nbsp;matchs&nbsp;; CPU par match ≈ nul.</td></tr>
+        <tr><td class="k">Matchmaking</td><td>File par note, fenêtre qui s'élargit avec l'attente&nbsp;; assigne les 2 joueurs à une instance.</td></tr>
+        <tr><td class="k">Persistance</td><td>Postgres / Supabase&nbsp;: <span class="n">users, ratings, matches, match_orders, seasons, cosmetics, ownership, battlepass</span>.</td></tr>
+        <tr><td class="k">Auth</td><td>Supabase Auth (e-mail + OAuth).</td></tr>
+        <tr><td class="k">Déploiement</td><td>Coolify sur le VPS. 1 conteneur serveur au début, scale horizontal via le matchmaker ensuite.</td></tr>
+        <tr><td class="k">Anti-triche</td><td>Serveur autoritatif + validation «&nbsp;ordres légaux uniquement&nbsp;» + rate limit + détection d'anomalies de winrate. Chaque match rejouable pour audit.</td></tr>
+      </table>
+    </div>
+  </section>
+
+  <section id="roadmap">
+    <div class="sechead"><span class="num">08</span><h2>Feuille de route</h2></div>
+    <p>Développement solo. Durées indicatives, séquentielles.</p>
+    <ol class="road">
+      <li>
+        <div><b>Le choc</b><p>Solveur de knockback déterministe (point fixe) + 1 arène + 1 héros, hotseat local. Objectif unique&nbsp;: prouver que percuter est jouissif.</p></div>
+        <span class="dur">1&ndash;2 sem.</span>
+      </li>
+      <li>
+        <div><b>Le tour complet</b><p>Choix du héros, visée angle + puissance, attaque, résolution simultanée, KO / score / respawn. Roster de 3.</p></div>
+        <span class="dur">1&ndash;2 sem.</span>
+      </li>
+      <li>
+        <div><b>1v1 en ligne</b><p>WebSocket, serveur autoritatif à simulation par salves, sans compte. Jouable avec des proches.</p></div>
+        <span class="dur">~1 sem.</span>
+      </li>
+      <li>
+        <div><b>Comptes &amp; matchmaking</b><p>Supabase Auth, file non classée, profils.</p></div>
+        <span class="dur">1&ndash;2 sem.</span>
+      </li>
+      <li>
+        <div><b>Classé &amp; Saison 0</b><p>Glicko-2, paliers, ladder, bêta fermée pour récolter des données d'équilibrage réelles.</p></div>
+        <span class="dur">~1 sem.</span>
+      </li>
+      <li>
+        <div><b>Profondeur</b><p>Ban / pick, roster complet à 6, replays, spectate.</p></div>
+        <span class="dur">~2 sem.</span>
+      </li>
+      <li>
+        <div><b>Vie de service</b><p>Pass de saison, cosmétiques, SFX, screen-shake &amp; juice, polish. En continu.</p></div>
+        <span class="dur">continu</span>
+      </li>
+    </ol>
+
+    <div class="open">
+      <h3>Encore ouvert</h3>
+      <ul>
+        <li><strong>Le nom.</strong> <em>Ricochet</em> est un titre de travail. Autres pistes&nbsp;: <code>Lockstep</code>, <code>Cadence</code>, <code>Overbump</code>, <code>Carrom</code>.</li>
+        <li><strong>Identité visuelle</strong>&nbsp;: direction artistique, palette, logo &mdash; non tranché.</li>
+        <li><strong>Nombre d'arènes exact</strong> au lancement (3 ou 4) et roster de la Saison&nbsp;1.</li>
+        <li><strong>Web mobile</strong>&nbsp;: viser le tactile dès le départ ou après le PC&nbsp;?</li>
+      </ul>
+    </div>
+  </section>
+
+</div>
+
+<footer class="wrap">
+  Ricochet Playbook &mdash; bible de conception v0.1 &middot; document de travail, tout est sujet à révision.
+</footer>
+
+<script>
+  (function () {
+    var canvas = document.getElementById("arena");
+    if (!canvas || !canvas.getContext) return;
+    var ctx = canvas.getContext("2d");
+    var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    var cssW = 880, cssH = 240;
+    function fit() {
+      var rect = canvas.getBoundingClientRect();
+      cssW = rect.width || 880;
+      cssH = 240;
+      var dpr = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = Math.round(cssW * dpr);
+      canvas.height = Math.round(cssH * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    fit();
+    window.addEventListener("resize", fit);
+
+    function readVar(name, fallback) {
+      var v = getComputedStyle(document.documentElement).getPropertyValue(name);
+      return (v && v.trim()) || fallback;
+    }
+
+    var R = 15;
+    var discs;
+    function reset() {
+      discs = [
+        { x: cssW * 0.30, y: cssH * 0.5, vx: 0, vy: 0, c: "impact", live: true },
+        { x: cssW * 0.62, y: cssH * 0.38, vx: 0, vy: 0, c: "momentum", live: true },
+        { x: cssW * 0.70, y: cssH * 0.66, vx: 0, vy: 0, c: "muted", live: true }
+      ];
+      striker = { x: -40, y: cssH * 0.5, vx: 6.4, vy: 0.5, trail: [] };
+      phase = "run";
+      timer = 0;
+    }
+    var striker, phase, timer;
+    reset();
+
+    function colorFor(key) {
+      if (key === "impact") return readVar("--impact", "#e5402a");
+      if (key === "momentum") return readVar("--momentum", "#2e63f0");
+      return readVar("--muted", "#8a8397");
+    }
+
+    function drawArena() {
+      ctx.clearRect(0, 0, cssW, cssH);
+      var line = readVar("--arena-line", "#322d42");
+      ctx.strokeStyle = line;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(12.5, 12.5, cssW - 25, cssH - 25);
+      ctx.beginPath();
+      ctx.arc(cssW / 2, cssH / 2, 34, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    function drawDisc(d) {
+      ctx.beginPath();
+      ctx.arc(d.x, d.y, R, 0, Math.PI * 2);
+      ctx.fillStyle = colorFor(d.c);
+      ctx.globalAlpha = d.live ? 1 : 0.35;
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+
+    function drawStriker() {
+      for (var i = 0; i < striker.trail.length; i++) {
+        var t = striker.trail[i];
+        ctx.beginPath();
+        ctx.arc(t.x, t.y, R * (0.4 + 0.6 * (i / striker.trail.length)), 0, Math.PI * 2);
+        ctx.fillStyle = readVar("--impact", "#e5402a");
+        ctx.globalAlpha = 0.08 + 0.14 * (i / striker.trail.length);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      ctx.beginPath();
+      ctx.arc(striker.x, striker.y, R, 0, Math.PI * 2);
+      ctx.fillStyle = readVar("--impact", "#e5402a");
+      ctx.fill();
+    }
+
+    function step() {
+      if (phase === "run") {
+        striker.trail.push({ x: striker.x, y: striker.y });
+        if (striker.trail.length > 14) striker.trail.shift();
+        striker.x += striker.vx;
+        striker.y += striker.vy;
+        for (var i = 0; i < discs.length; i++) {
+          var d = discs[i];
+          if (!d.live) continue;
+          var dx = d.x - striker.x, dy = d.y - striker.y;
+          if (dx * dx + dy * dy < (R * 2) * (R * 2)) {
+            var m = Math.sqrt(dx * dx + dy * dy) || 1;
+            var force = 7.5;
+            d.vx = (dx / m) * force + striker.vx * 0.5;
+            d.vy = (dy / m) * force + striker.vy * 0.5;
+            striker.vx *= 0.35;
+            striker.vy *= 0.35;
+            phase = "scatter";
+            break;
+          }
+        }
+        if (striker.x > cssW + 60) { phase = "settle"; timer = 0; }
+      } else if (phase === "scatter") {
+        striker.x += striker.vx;
+        striker.y += striker.vy;
+        propagate();
+        timer++;
+        if (timer > 90) { phase = "settle"; timer = 0; }
+      } else if (phase === "settle") {
+        propagate();
+        timer++;
+        if (timer > 70) reset();
+      }
+    }
+
+    function propagate() {
+      for (var i = 0; i < discs.length; i++) {
+        var d = discs[i];
+        d.x += d.vx;
+        d.y += d.vy;
+        d.vx *= 0.965;
+        d.vy *= 0.965;
+        if (d.live && (d.x < -30 || d.x > cssW + 30 || d.y < -30 || d.y > cssH + 30)) d.live = false;
+        for (var j = i + 1; j < discs.length; j++) {
+          var e = discs[j];
+          var dx = e.x - d.x, dy = e.y - d.y;
+          var dist = Math.sqrt(dx * dx + dy * dy) || 1;
+          if (dist < R * 2) {
+            var nx = dx / dist, ny = dy / dist;
+            var p = 0.6;
+            d.vx -= nx * p; d.vy -= ny * p;
+            e.vx += nx * p; e.vy += ny * p;
+            var overlap = (R * 2 - dist) / 2;
+            d.x -= nx * overlap; d.y -= ny * overlap;
+            e.x += nx * overlap; e.y += ny * overlap;
+          }
+        }
+      }
+    }
+
+    function frame() {
+      step();
+      drawArena();
+      for (var i = 0; i < discs.length; i++) drawDisc(discs[i]);
+      drawStriker();
+      requestAnimationFrame(frame);
+    }
+
+    if (reduce) {
+      // static post-impact frame
+      discs[0].x = cssW * 0.5; discs[0].y = cssH * 0.32;
+      discs[1].x = cssW * 0.5 + 120; discs[1].y = cssH * 0.2; discs[1].live = false;
+      striker.x = cssW * 0.44; striker.y = cssH * 0.52;
+      drawArena();
+      for (var i = 0; i < discs.length; i++) drawDisc(discs[i]);
+      drawStriker();
+    } else {
+      requestAnimationFrame(frame);
+    }
+  })();
+</script>

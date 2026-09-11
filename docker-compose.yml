@@ -1,0 +1,25 @@
+# Topo locale Phase 3 : le build web + le serveur de match autoritatif.
+# Pas de comptes, pas de base — c'est la Phase 4.
+#   docker compose up --build
+#   web    -> http://localhost:4173  (ajouter ?server=ws://localhost:8787 si besoin)
+#   match  -> ws://localhost:8787   (santé : http://localhost:8787/healthz)
+
+services:
+  match:
+    build:
+      context: .
+      target: match
+    ports:
+      - "8787:8787"
+    environment:
+      - PORT=8787
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      target: web
+    ports:
+      - "4173:4173"
+    depends_on:
+      - match

@@ -1,0 +1,26 @@
+{
+  "name": "ricochet",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Brawler 1v1 compétitif dans le navigateur — prototype Phase 1 : solveur de knockback déterministe + hotseat local.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "check": "tsx scripts/check.ts",
+    "server": "tsx server/server.ts",
+    "net-test": "tsx scripts/net-test.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.1",
+    "@types/ws": "^8.18.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10",
+    "vitest": "^2.1.9",
+    "ws": "^8.21.3"
+  }
+}

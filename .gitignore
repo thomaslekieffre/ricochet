@@ -1,0 +1,10 @@
+node_modules
+dist
+.DS_Store
+.vite
+
+# env — jamais commiter les vraies valeurs (garder .env.example)
+.env
+.env.local
+.env.*.local
+*.local
