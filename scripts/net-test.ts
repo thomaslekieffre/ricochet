@@ -12,13 +12,12 @@ import { WebSocket } from "ws";
 import { hashState, resolve } from "../src/engine/index";
 import { fromFloat, toFloat } from "../src/engine/fixed";
 import { angleToIdx } from "../src/engine/trig";
-import type { GameState, Order } from "../src/engine/index";
+import type { GameState, HeroKind, Order } from "../src/engine/index";
 import { createMatchServer } from "../server/server";
 import { encode } from "../src/net/protocol";
 import type { ClientMsg, ServerMsg } from "../src/net/protocol";
 
 const PORT = 8799;
-const TEAM = ["ram", "sling", "boulder"] as const;
 const MAX_TURNS = 30;
 
 function towardZone(s: GameState, seat: 0 | 1): Order {
@@ -94,9 +93,19 @@ async function main(): Promise<void> {
 
   const onMsg = (idx: 0 | 1, m: ServerMsg) => {
     const seat = seats[idx];
-    if (m.t === "matched") {
+    if (m.t === "paired") {
+      seats[idx] = { ws: seat!.ws, seat: m.seat, matchId: m.matchId, state: seat!.state };
+    } else if (m.t === "draft" && seat) {
+      // client factice : bannit le premier héros du pool, prend les 3 premiers restants
+      if (m.phase === "ban") {
+        send(seat.ws, { t: "ban", matchId: seat.matchId, hero: m.pool[0]! });
+      } else {
+        const team = m.pool.slice(0, 3) as [HeroKind, HeroKind, HeroKind];
+        send(seat.ws, { t: "pick", matchId: seat.matchId, team });
+      }
+    } else if (m.t === "matched") {
       seats[idx] = { ws: seat!.ws, seat: m.seat, matchId: m.matchId, state: m.state };
-      if (seats[0]?.matchId && seats[1]?.matchId) playTurn();
+      if (seats[0]?.state && seats[1]?.state) playTurn();
     } else if (m.t === "turn" && seat) {
       seat.state = m.state;
       (hashes[m.turn] ??= []).push(m.hash);
@@ -123,7 +132,7 @@ async function main(): Promise<void> {
     seats[idx] = { ws, seat: idx, matchId: "", state: null as unknown as GameState };
     ws.on("open", () => {
       send(ws, { t: "hello", v: 1 });
-      send(ws, { t: "queue", setup: { team: [...TEAM] as [string, string, string] as never, arenaId: "carrefour" } });
+      send(ws, { t: "queue", setup: { arenaId: "carrefour" } });
     });
     ws.on("message", (raw: Buffer) => onMsg(idx, JSON.parse(raw.toString()) as ServerMsg));
   }

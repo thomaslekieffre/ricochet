@@ -9,8 +9,8 @@
 
 import { createServer, type Server } from "node:http";
 import { WebSocketServer, type WebSocket } from "ws";
-import { hashState, newMatch, resolve } from "../src/engine/index";
-import type { GameState, Order } from "../src/engine/index";
+import { hashState, newMatch, resolve, ROSTER } from "../src/engine/index";
+import type { GameState, HeroKind, Order } from "../src/engine/index";
 import {
   DEFAULT_PORT,
   PROTOCOL_VERSION,
@@ -22,6 +22,8 @@ import {
 
 const TURN_DEADLINE_MS = 12_000;
 const ANIM_GRACE_MS = 9_000;
+const DRAFT_BAN_MS = 15_000;
+const DRAFT_PICK_MS = 25_000;
 
 const HOLD: Order = { bodyId: -1, angleIdx: 0, power: 0, ability: false, hold: true };
 
@@ -31,6 +33,7 @@ interface Client {
   id: number;
   ws: WebSocket;
   setup: QueueSetup | null;
+  draft: Draft | null;
   match: Match | null;
   seat: 0 | 1;
   alive: boolean;
@@ -40,24 +43,143 @@ function send(c: Client, msg: ServerMsg): void {
   if (c.ws.readyState === c.ws.OPEN) c.ws.send(encode(msg));
 }
 
+function randomHero(pool: HeroKind[]): HeroKind {
+  return pool[Math.floor(Math.random() * pool.length)]!;
+}
+
+function randomTeam(pool: HeroKind[]): [HeroKind, HeroKind, HeroKind] {
+  const shuffled = [...pool];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j]!, shuffled[i]!];
+  }
+  return [shuffled[0]!, shuffled[1]!, shuffled[2]!];
+}
+
+/**
+ * Ban/pick en ligne (docs/PHASES.md P6) : chaque camp bannit 1 héros du pool
+ * commun (simultané), puis compose 3 héros parmi les restants (simultané,
+ * les compos peuvent se recouper). Timeout à chaque phase -> choix aléatoire
+ * pour le retardataire, comme le bot en local.
+ */
+class Draft {
+  private bans: [HeroKind | null, HeroKind | null] = [null, null];
+  private picks: [HeroKind[] | null, HeroKind[] | null] = [null, null];
+  private phase: "ban" | "pick" = "ban";
+  private pool: HeroKind[] = [...ROSTER];
+  private timer: NodeJS.Timeout | null = null;
+  private closed = false;
+
+  constructor(
+    readonly id: string,
+    private seats: [Client, Client],
+    private arenaId: string,
+    private onDone: (teamA: HeroKind[], teamB: HeroKind[], arenaId: string) => void,
+  ) {
+    const [a, b] = seats;
+    a.seat = 0;
+    b.seat = 1;
+    a.draft = this;
+    b.draft = this;
+    this.beginBan();
+  }
+
+  private arm(ms: number, fn: () => void): void {
+    if (this.timer) clearTimeout(this.timer);
+    this.timer = setTimeout(fn, ms);
+  }
+
+  private beginBan(): void {
+    const deadlineMs = Date.now() + DRAFT_BAN_MS;
+    this.arm(DRAFT_BAN_MS, () => this.forceBan());
+    for (const c of this.seats) {
+      send(c, { t: "draft", matchId: this.id, phase: "ban", pool: this.pool, deadlineMs });
+    }
+  }
+
+  onBan(seat: 0 | 1, hero: HeroKind): void {
+    if (this.closed || this.phase !== "ban" || !this.pool.includes(hero)) return;
+    this.bans[seat] = hero;
+    if (this.bans[0] && this.bans[1]) this.finishBan();
+  }
+
+  private forceBan(): void {
+    for (const s of [0, 1] as const) {
+      if (!this.bans[s]) this.bans[s] = randomHero(this.pool);
+    }
+    this.finishBan();
+  }
+
+  private finishBan(): void {
+    if (this.closed) return;
+    if (this.timer) clearTimeout(this.timer);
+    this.phase = "pick";
+    const banned = new Set(this.bans.filter((h): h is HeroKind => h !== null));
+    this.pool = ROSTER.filter((h) => !banned.has(h));
+    const deadlineMs = Date.now() + DRAFT_PICK_MS;
+    this.arm(DRAFT_PICK_MS, () => this.forcePick());
+    for (const c of this.seats) {
+      send(c, { t: "draft", matchId: this.id, phase: "pick", pool: this.pool, deadlineMs });
+    }
+  }
+
+  onPick(seat: 0 | 1, team: HeroKind[]): void {
+    if (this.closed || this.phase !== "pick") return;
+    const valid =
+      team.length === 3 &&
+      new Set(team).size === 3 &&
+      team.every((h) => this.pool.includes(h));
+    if (!valid) return;
+    this.picks[seat] = team;
+    if (this.picks[0] && this.picks[1]) this.finish();
+  }
+
+  private forcePick(): void {
+    for (const s of [0, 1] as const) {
+      if (!this.picks[s]) this.picks[s] = randomTeam(this.pool);
+    }
+    this.finish();
+  }
+
+  private finish(): void {
+    if (this.closed) return;
+    this.closed = true;
+    if (this.timer) clearTimeout(this.timer);
+    for (const c of this.seats) c.draft = null;
+    this.onDone(this.picks[0]!, this.picks[1]!, this.arenaId);
+  }
+
+  onLeave(c: Client): void {
+    if (this.closed) return;
+    this.closed = true;
+    if (this.timer) clearTimeout(this.timer);
+    const other = this.seats[c.seat === 0 ? 1 : 0];
+    other.draft = null;
+    send(other, { t: "opponentLeft", matchId: this.id });
+  }
+}
+
 class Match {
-  readonly id = `m${nextId++}`;
   state: GameState;
   private pending: [Order | null, Order | null] = [null, null];
   private ready = new Set<0 | 1>();
   private timer: NodeJS.Timeout | null = null;
   private closed = false;
 
-  constructor(private seats: [Client, Client]) {
+  constructor(
+    readonly id: string,
+    private seats: [Client, Client],
+    teamA: HeroKind[],
+    teamB: HeroKind[],
+    arenaId: string,
+  ) {
     const [a, b] = seats;
-    a.seat = 0;
-    b.seat = 1;
     a.match = this;
     b.match = this;
     this.state = newMatch({
-      teamA: a.setup!.team,
-      teamB: b.setup!.team,
-      arena: a.setup!.arenaId, // seat 0 picks the arena
+      teamA: teamA as [HeroKind, HeroKind, HeroKind],
+      teamB: teamB as [HeroKind, HeroKind, HeroKind],
+      arena: arenaId,
     });
     this.beginTurn(true);
   }
@@ -194,12 +316,28 @@ export function createMatchServer(port = DEFAULT_PORT): { http: Server; close: (
         waiting.unshift(a);
         continue;
       }
-      new Match([a, b]);
+      const id = `m${nextId++}`;
+      a.seat = 0;
+      b.seat = 1;
+      send(a, { t: "paired", matchId: id, seat: 0 });
+      send(b, { t: "paired", matchId: id, seat: 1 });
+      // seat 0 picks the arena, comme avant l'introduction du draft
+      new Draft(id, [a, b], a.setup!.arenaId, (teamA, teamB, arenaId) => {
+        new Match(id, [a, b], teamA, teamB, arenaId);
+      });
     }
   };
 
   wss.on("connection", (ws: WebSocket) => {
-    const client: Client = { id: nextId++, ws, setup: null, match: null, seat: 0, alive: true };
+    const client: Client = {
+      id: nextId++,
+      ws,
+      setup: null,
+      draft: null,
+      match: null,
+      seat: 0,
+      alive: true,
+    };
     send(client, { t: "welcome", v: PROTOCOL_VERSION });
 
     ws.on("message", (raw: Buffer) => {
@@ -225,6 +363,12 @@ export function createMatchServer(port = DEFAULT_PORT): { http: Server; close: (
           if (i >= 0) waiting.splice(i, 1);
           break;
         }
+        case "ban":
+          client.draft?.onBan(client.seat, msg.hero);
+          break;
+        case "pick":
+          client.draft?.onPick(client.seat, msg.team);
+          break;
         case "order":
           client.match?.onOrder(client.seat, msg.turn, msg.order);
           break;
@@ -244,6 +388,7 @@ export function createMatchServer(port = DEFAULT_PORT): { http: Server; close: (
       client.alive = false;
       const i = waiting.indexOf(client);
       if (i >= 0) waiting.splice(i, 1);
+      client.draft?.onLeave(client);
       client.match?.onLeave(client);
     });
   });

@@ -20,10 +20,11 @@ import { downloadRecording, makeRecording, parseRecording } from "./replay";
 import {
   banPickScreen,
   codexScreen,
-  draftScreen,
+  hideOverlay,
   menuScreen,
   nameScreen,
   noticeScreen,
+  onlineDraftScreen,
   profileScreen,
   resultScreen,
   searchingScreen,
@@ -96,7 +97,7 @@ export class App {
   private onStart(o: StartOpts): void {
     this.teardown();
     if (o.mode === "online") {
-      draftScreen(false, (team) => this.startOnline(o, team));
+      this.startOnline(o);
     } else {
       banPickScreen(o.mode === "hotseat", (teamA, teamB) => {
         this.last = { opts: o, teamA, teamB };
@@ -263,15 +264,37 @@ export class App {
 
   // ---- online -------------------------------------------------------
 
-  private startOnline(o: StartOpts, team: HeroKind[]): void {
+  private startOnline(o: StartOpts): void {
     this.teardown();
     const client = new NetClient();
     this.net = client;
+    let matchId = "";
 
     const off = client.on((m: ServerMsg) => {
-      if (m.t === "matched") {
+      if (m.t === "paired") {
+        matchId = m.matchId;
+      } else if (m.t === "draft") {
+        onlineDraftScreen(
+          m.phase,
+          m.pool,
+          (hero) => client.send({ t: "ban", matchId, hero }),
+          (team) =>
+            client.send({
+              t: "pick",
+              matchId,
+              team: team as [HeroKind, HeroKind, HeroKind],
+            }),
+          () => {
+            off();
+            client.send({ t: "cancel" });
+            this.teardown();
+            this.toMenu();
+          },
+        );
+      } else if (m.t === "matched") {
         off();
-        this.startNetMatch(client, m, o, team);
+        hideOverlay();
+        this.startNetMatch(client, m, o);
       } else if (m.t === "error") {
         off();
         this.teardown();
@@ -287,12 +310,7 @@ export class App {
 
     client
       .connect()
-      .then(() =>
-        client.send({
-          t: "queue",
-          setup: { team: team as [HeroKind, HeroKind, HeroKind], arenaId: o.arenaId },
-        }),
-      )
+      .then(() => client.send({ t: "queue", setup: { arenaId: o.arenaId } }))
       .catch(() => {
         this.teardown();
         noticeScreen(
@@ -307,12 +325,11 @@ export class App {
     client: NetClient,
     matched: Extract<ServerMsg, { t: "matched" }>,
     o: StartOpts,
-    team: HeroKind[],
   ): void {
     const seat = matched.seat;
     const mo: MatchOpts = {
-      teamA: team,
-      teamB: team,
+      teamA: [],
+      teamB: [],
       arenaId: o.arenaId,
       sides: seat === 0 ? ["human", "remote"] : ["remote", "human"],
       botLevel: 2,
@@ -325,7 +342,7 @@ export class App {
         resultScreen(
           winner === seat ? "Gagné" : "Perdu",
           winner === seat ? "La zone est à toi." : "L'adversaire a tenu la zone.",
-          () => this.startOnline(o, team),
+          () => this.startOnline(o),
           () => this.toMenu(),
           this.replayDownloader(winner),
           scorelineHtml(score),

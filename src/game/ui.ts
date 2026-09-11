@@ -155,13 +155,6 @@ export function menuScreen(
   });
 }
 
-const PRESETS: HeroKind[][] = [
-  ["ram", "sling", "boulder"],
-  ["hook", "prism", "comet"],
-  ["boulder", "prism", "sling"],
-  ["ram", "hook", "comet"],
-];
-
 /** Une carte du pool de draft — nom, archétype, phrase, ligne de capacité. */
 function poolCard(h: HeroKind, opts: { on?: boolean; locked?: boolean; badge?: number }): string {
   const d = HEROES[h];
@@ -332,56 +325,71 @@ export function banPickScreen(
   render("ban0");
 }
 
-/** Draft en ligne : un seul camp compose 3 héros (pas de ban). */
-export function draftScreen(
-  needTwo: boolean,
-  onDone: (teamA: HeroKind[], teamB: HeroKind[]) => void,
+/**
+ * Draft en ligne (docs/PHASES.md P6) : pilotée par le serveur — un `draft`
+ * (ban, puis pick) à la fois, un seul appel par message reçu. Une fois le
+ * choix envoyé, l'écran se fige sur "en attente de l'adversaire" jusqu'au
+ * prochain message serveur (`draft` de la phase suivante, ou `matched`).
+ */
+export function onlineDraftScreen(
+  phase: "ban" | "pick",
+  pool: HeroKind[],
+  onBan: (hero: HeroKind) => void,
+  onPick: (team: HeroKind[]) => void,
+  onCancel: () => void,
 ): void {
-  let phase: 0 | 1 = 0;
-  const teams: [HeroKind[], HeroKind[]] = [[], []];
+  const picked: HeroKind[] = [];
+  let submitted = false;
 
   const render = (): void => {
-    const cur = teams[phase];
-    const head = !needTwo ? "Ta compo" : `Joueur ${phase + 1}`;
+    const head = phase === "ban" ? "Bannis un héros" : "Compose ton équipe";
+    const sub =
+      phase === "ban"
+        ? "Il sort de la sélection pour les deux camps."
+        : `Choisis 3 héros parmi les ${pool.length} restants.`;
     const el = show(`
       <div class="screen draft">
         <h2>${head}</h2>
-        <p class="sub">Choisis 3 héros. <span id="count">${cur.length}/3</span></p>
-        <div class="versus solo">
-          ${teamPanel("a", head, null, cur, true, true)}
-        </div>
-        <div class="pool">${ROSTER.map((h) =>
-          poolCard(h, {
-            on: cur.includes(h),
-            badge: cur.includes(h) ? cur.indexOf(h) + 1 : undefined,
-          }),
-        ).join("")}</div>
-        <button class="cta" id="go" ${cur.length === 3 ? "" : "disabled"}>
-          ${!needTwo ? "Lancer le match" : phase === 0 ? "Au Joueur 2" : "Lancer le match"}
-        </button>
+        <p class="sub">${sub}</p>
+        ${phase === "pick" ? `<p class="sub">${picked.length}/3</p>` : ""}
+        <div class="pool">${pool
+          .map((h) =>
+            poolCard(h, {
+              on: picked.includes(h),
+              locked: submitted,
+              badge: phase === "pick" && picked.includes(h) ? picked.indexOf(h) + 1 : undefined,
+            }),
+          )
+          .join("")}</div>
+        ${phase === "pick" ? `<button class="cta" id="go" ${picked.length === 3 && !submitted ? "" : "disabled"}>Valider</button>` : ""}
+        ${submitted ? `<p class="sub">En attente de l'adversaire…</p>` : ""}
+        <button class="linkbtn" id="cancel">Annuler</button>
       </div>
     `);
-    el.querySelectorAll<HTMLElement>(".pcard").forEach((c) => {
-      c.addEventListener("click", () => {
-        const h = c.dataset.h as HeroKind;
-        const i = cur.indexOf(h);
-        if (i >= 0) cur.splice(i, 1);
-        else if (cur.length < 3) cur.push(h);
-        render();
+    if (!submitted) {
+      el.querySelectorAll<HTMLElement>(".pcard").forEach((c) => {
+        c.addEventListener("click", () => {
+          const h = c.dataset.h as HeroKind;
+          if (phase === "ban") {
+            submitted = true;
+            render();
+            onBan(h);
+            return;
+          }
+          const i = picked.indexOf(h);
+          if (i >= 0) picked.splice(i, 1);
+          else if (picked.length < 3) picked.push(h);
+          render();
+        });
       });
-    });
-    el.querySelector("#go")!.addEventListener("click", () => {
-      if (cur.length !== 3) return;
-      if (needTwo && phase === 0) {
-        phase = 1;
+      el.querySelector("#go")?.addEventListener("click", () => {
+        if (picked.length !== 3) return;
+        submitted = true;
         render();
-        return;
-      }
-      hideOverlay();
-      const a = teams[0];
-      const b = needTwo ? teams[1] : PRESETS[Math.floor(Math.random() * PRESETS.length)]!;
-      onDone(a, b);
-    });
+        onPick(picked);
+      });
+    }
+    el.querySelector("#cancel")!.addEventListener("click", onCancel);
   };
   render();
 }

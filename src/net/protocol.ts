@@ -18,7 +18,6 @@ export const PROTOCOL_VERSION = 1;
 export const DEFAULT_PORT = 8787;
 
 export interface QueueSetup {
-  team: [HeroKind, HeroKind, HeroKind];
   arenaId: string;
 }
 
@@ -27,6 +26,8 @@ export type ClientMsg =
   | { t: "hello"; v: number }
   | { t: "queue"; setup: QueueSetup }
   | { t: "cancel" }
+  | { t: "ban"; matchId: string; hero: HeroKind }
+  | { t: "pick"; matchId: string; team: [HeroKind, HeroKind, HeroKind] }
   | { t: "order"; matchId: string; turn: number; order: Order }
   | { t: "ready"; matchId: string; turn: number }
   | { t: "resync"; matchId: string }
@@ -36,6 +37,14 @@ export type ClientMsg =
 export type ServerMsg =
   | { t: "welcome"; v: number }
   | { t: "queued" }
+  | { t: "paired"; matchId: string; seat: 0 | 1 }
+  | {
+      t: "draft";
+      matchId: string;
+      phase: "ban" | "pick";
+      pool: HeroKind[];
+      deadlineMs: number;
+    }
   | { t: "matched"; matchId: string; seat: 0 | 1; state: GameState; deadlineMs: number }
   | {
       t: "turn";
