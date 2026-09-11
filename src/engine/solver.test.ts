@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fromFloat, ONE, toFloat } from "./fixed";
+import { fromFloat, fromInt, ONE, toFloat } from "./fixed";
 import { newMatch, resolve } from "./index";
 import type { GameState, HeroKind, Order } from "./index";
 import { angleToIdx, TABLE_SIZE } from "./trig";
@@ -110,5 +110,51 @@ describe("solver — mode Contrôle", () => {
     for (let i = 0; i < 60 && !s.over; i++) s = resolve(s, towardZone(s, 0), HOLD).state;
     expect(s.over).toBe(true);
     expect(s.winner).toBe(0);
+  });
+});
+
+describe("roster à 8 — Vex et Arc", () => {
+  it("Vex Effondrement tire un ennemi proche vers elle au lieu de le repousser", () => {
+    let s = newMatch({ teamA: ["vex", "boulder", "ram"], teamB: ["hook", "comet", "sling"] });
+    s.teams[0].momentum = 3; // abilityCost de Vex
+    const vex = s.bodies.find((b) => b.hero === "vex")!;
+    const enemy = s.bodies.find((b) => b.hero === "hook")!;
+    vex.x = fromInt(800);
+    vex.y = fromInt(500);
+    enemy.x = fromInt(900); // à 100 unités, dans le rayon de Sinkhole (230)
+    enemy.y = fromInt(500);
+    for (const b of s.bodies) {
+      if (b === vex || b === enemy) continue;
+      b.x = fromInt(50);
+      b.y = fromInt(50);
+    }
+    const before = enemy.x;
+    const order: Order = { bodyId: vex.id, angleIdx: 0, power: 0, ability: true };
+    const res = resolve(s, order, HOLD);
+    const firstFrame = res.frames[0]!;
+    const enemySnap = firstFrame.bodies.find((b) => b.id === enemy.id)!;
+    // dès le premier substep, l'ennemi a déjà bougé vers Vex (x diminue), pas repoussé
+    expect(enemySnap.x).toBeLessThan(before);
+  });
+
+  it("Arc éclabousse aussi un ennemi proche du point d'impact", () => {
+    let s = newMatch({ teamA: ["arc", "boulder", "ram"], teamB: ["hook", "comet", "sling"] });
+    const arc = s.bodies.find((b) => b.hero === "arc")!;
+    const direct = s.bodies.find((b) => b.hero === "hook")!;
+    const splashed = s.bodies.find((b) => b.hero === "comet")!;
+    arc.x = fromInt(200);
+    arc.y = fromInt(500);
+    direct.x = fromInt(400);
+    direct.y = fromInt(500);
+    splashed.x = fromInt(400);
+    splashed.y = fromInt(570); // à 70 unités du point d'impact — hors collision directe, dans le rayon d'éclat (90)
+    const other = s.bodies.find((b) => b.hero === "sling")!;
+    other.x = fromInt(50);
+    other.y = fromInt(50);
+    const beforeY = splashed.y;
+    const order: Order = { bodyId: arc.id, angleIdx: 0, power: 0, ability: false };
+    const res = resolve(s, order, HOLD);
+    const after = res.state.bodies.find((b) => b.id === splashed.id)!;
+    expect(after.y).not.toBe(beforeY); // poussé par l'éclaboussure, sans avoir été touché directement
   });
 });

@@ -43,6 +43,12 @@ export const FLARE_RADIUS = fromInt(210);
 export const FLARE_FORCE = fromInt(1000);
 export const WALL_TURNS = 2; // Prism wall lifetime
 export const WALL_LEN = fromInt(190);
+export const SINKHOLE_RADIUS = fromInt(230); // Vex — Effondrement
+export const SINKHOLE_FORCE = fromInt(900);
+export const SINKHOLE_STILL_BONUS = fromFloat(1.4); // x force si Vex n'a pas agi au tour d'avant
+export const ARC_SPLASH_RADIUS = fromInt(90); // Arc — éclats à l'impact (tir de base)
+export const ARC_SPLASH_RADIUS_FRAG = fromInt(160); // avec Fragmentation armée
+export const ARC_SPLASH_FORCE_FRAC = fromFloat(0.55); // fraction du kb direct appliquée en éclaboussure
 
 // --- passives ---
 export const OVERWATCH_BONUS = fromFloat(0.5); // Sling +50% kb if it held last turn

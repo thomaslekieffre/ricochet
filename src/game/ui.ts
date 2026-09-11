@@ -200,7 +200,7 @@ function teamPanel(
 
 /**
  * Draft ban/pick pour les modes locaux (docs/PHASES.md P6, version hotseat/bot).
- * Chaque camp bannit 1 héros du pool commun, puis compose 3 héros parmi les 4
+ * Chaque camp bannit 1 héros du pool commun, puis compose 3 héros parmi les
  * restants (les compos peuvent se recouper). Le bot bannit et compose au hasard.
  */
 export function banPickScreen(

@@ -8,8 +8,8 @@ import { newMatch, pickOrder, resolve } from "../src/engine/index";
 import type { GameState, HeroKind, Order } from "../src/engine/index";
 import { TABLE_SIZE } from "../src/engine/trig";
 
-const TEAM_A: [HeroKind, HeroKind, HeroKind] = ["ram", "sling", "boulder"];
-const TEAM_B: [HeroKind, HeroKind, HeroKind] = ["hook", "prism", "comet"];
+const TEAM_A: [HeroKind, HeroKind, HeroKind] = ["ram", "arc", "boulder"];
+const TEAM_B: [HeroKind, HeroKind, HeroKind] = ["hook", "vex", "comet"];
 
 function rng(seed: number) {
   let x = seed >>> 0 || 1;

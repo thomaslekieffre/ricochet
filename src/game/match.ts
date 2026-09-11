@@ -330,12 +330,12 @@ export class Match {
         angleIdx: ord.angleIdx,
         born: now,
       });
-      if (e.hero === "boulder") {
+      if (e.hero === "boulder" || e.hero === "vex") {
         this.shocks.push({
           x: body.x,
           y: body.y,
           owner: body.owner,
-          rMax: tuning.QUAKE_RADIUS,
+          rMax: e.hero === "boulder" ? tuning.QUAKE_RADIUS : tuning.SINKHOLE_RADIUS,
           born: now,
         });
         sfx.boom();

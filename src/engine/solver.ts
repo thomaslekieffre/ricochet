@@ -184,6 +184,29 @@ export function resolve(prev: GameState, orderA: Order, orderB: Order): TurnResu
           radius: fx.fromInt(15),
           kb: kbBase + owBonus,
           bounces: canAbility ? T.RICOCHET_BOUNCES : 0,
+          splashRadius: 0,
+          dead: false,
+        });
+        break;
+      }
+      case "vex":
+        launch(fx.ONE);
+        if (canAbility) sinkhole(s, body);
+        break;
+      case "arc": {
+        launch(fx.ONE);
+        const kbBase = fx.fromInt(1000);
+        const owBonus = body.actedLastTurn ? 0 : fx.mul(kbBase, T.OVERWATCH_BONUS);
+        spawnProjectile(s, {
+          owner: o,
+          x: body.x + fx.mul(dirx, body.radius + fx.fromInt(6)),
+          y: body.y + fx.mul(diry, body.radius + fx.fromInt(6)),
+          vx: fx.mul(dirx, fx.fromInt(900) + fx.mul(fx.fromInt(500), power)),
+          vy: fx.mul(diry, fx.fromInt(900) + fx.mul(fx.fromInt(500), power)),
+          radius: fx.fromInt(17),
+          kb: kbBase + owBonus,
+          bounces: 0,
+          splashRadius: canAbility ? T.ARC_SPLASH_RADIUS_FRAG : T.ARC_SPLASH_RADIUS,
           dead: false,
         });
         break;
@@ -400,6 +423,7 @@ function integrate(s: GameState): { hit: boolean; ko: boolean } {
         b.vx += fx.div(fx.mul(p.vx, j), sp);
         b.vy += fx.div(fx.mul(p.vy, j), sp);
       }
+      if (p.splashRadius > 0) splashHit(s, p, b);
       p.dead = true;
       hit = true;
       break;
@@ -564,6 +588,42 @@ function quake(s: GameState, boulder: Body): void {
     if (d === 0 || d >= T.QUAKE_RADIUS) continue;
     const fall = fx.div(T.QUAKE_RADIUS - d, T.QUAKE_RADIUS);
     const push = fx.div(fx.mul(fx.mul(T.QUAKE_FORCE, fall), HEROES[b.hero].kbTaken), b.mass);
+    b.vx += fx.div(fx.mul(nx, push), d);
+    b.vy += fx.div(fx.mul(ny, push), d);
+  }
+}
+
+/** Vex — Effondrement : tire les ennemis proches vers elle au lieu de les repousser. */
+function sinkhole(s: GameState, vex: Body): void {
+  const mult = vex.actedLastTurn ? fx.ONE : T.SINKHOLE_STILL_BONUS;
+  for (const b of s.bodies) {
+    if (b === vex || !b.alive || b.owner === vex.owner) continue;
+    const nx = b.x - vex.x;
+    const ny = b.y - vex.y;
+    const d = fx.sqrt(fx.mul(nx, nx) + fx.mul(ny, ny));
+    if (d === 0 || d >= T.SINKHOLE_RADIUS) continue;
+    const fall = fx.div(T.SINKHOLE_RADIUS - d, T.SINKHOLE_RADIUS);
+    const pull = fx.mul(
+      fx.div(fx.mul(fx.mul(T.SINKHOLE_FORCE, fall), HEROES[b.hero].kbTaken), b.mass),
+      mult,
+    );
+    // vers Vex : direction opposée à la normale sortante (b - vex)
+    b.vx -= fx.div(fx.mul(nx, pull), d);
+    b.vy -= fx.div(fx.mul(ny, pull), d);
+  }
+}
+
+/** Arc — Éclaboussure : un tir touché applique aussi une poussée radiale plus faible aux ennemis proches. */
+function splashHit(s: GameState, p: Projectile, direct: Body): void {
+  for (const b of s.bodies) {
+    if (b === direct || !b.alive || b.owner === p.owner) continue;
+    const nx = b.x - p.x;
+    const ny = b.y - p.y;
+    const d = fx.sqrt(fx.mul(nx, nx) + fx.mul(ny, ny));
+    if (d === 0 || d >= p.splashRadius) continue;
+    const fall = fx.div(p.splashRadius - d, p.splashRadius);
+    const force = fx.mul(p.kb, T.ARC_SPLASH_FORCE_FRAC);
+    const push = fx.div(fx.mul(fx.mul(force, fall), HEROES[b.hero].kbTaken), b.mass);
     b.vx += fx.div(fx.mul(nx, push), d);
     b.vy += fx.div(fx.mul(ny, push), d);
   }

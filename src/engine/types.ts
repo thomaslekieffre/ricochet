@@ -1,6 +1,14 @@
 /** Shared engine types. Fields tagged "fixed" are Q16.16 values (see fixed.ts). */
 
-export type HeroKind = "boulder" | "ram" | "comet" | "hook" | "sling" | "prism";
+export type HeroKind =
+  | "boulder"
+  | "ram"
+  | "comet"
+  | "hook"
+  | "sling"
+  | "prism"
+  | "vex"
+  | "arc";
 export type Archetype = "brawler" | "dasher" | "sniper" | "mage";
 
 export interface V {
@@ -40,6 +48,7 @@ export interface Projectile {
   radius: number; // fixed
   kb: number; // fixed — impulse magnitude delivered on hit
   bounces: number; // walls it may still bounce off
+  splashRadius: number; // fixed — 0 == single-target hit (Sling); >0 == AoE on impact (Arc)
   dead: boolean;
 }
 

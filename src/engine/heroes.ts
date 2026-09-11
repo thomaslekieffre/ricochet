@@ -155,9 +155,64 @@ export const HEROES: Record<HeroKind, HeroDef> = {
       effect: "L'Éclat explose seul au tour suivant, même si Prism s'est fait sortir.",
     },
   },
+  vex: {
+    kind: "vex",
+    name: "Vex",
+    archetype: "mage",
+    mass: fromFloat(1.2),
+    radius: fromInt(42),
+    launchBase: fromFloat(400),
+    launchPower: fromFloat(540),
+    kbDealt: fromFloat(0.75),
+    kbTaken: ONE,
+    abilityCost: 3,
+    ranged: false,
+    blurb: "Charge, puis tire les ennemis vers elle. Effondrement : la traction s'intensifie à l'arrêt.",
+    base: "Charge courte.",
+    ability: {
+      name: "Effondrement",
+      effect: "Ouvre une faille sous ses pieds : tire tous les ennemis proches vers Vex au lieu de les repousser.",
+    },
+    passive: {
+      name: "Ancrage",
+      effect: "+40 % de traction si Vex n'a pas agi au tour précédent.",
+    },
+  },
+  arc: {
+    kind: "arc",
+    name: "Arc",
+    archetype: "sniper",
+    mass: fromFloat(0.75),
+    radius: fromInt(38),
+    launchBase: fromFloat(140),
+    launchPower: fromFloat(220),
+    kbDealt: fromFloat(0.85),
+    kbTaken: fromFloat(1.1),
+    abilityCost: 3,
+    ranged: true,
+    blurb: "Projectile à éclats : touche aussi les ennemis proches de l'impact. Fragmentation : éclats bien plus larges.",
+    base: "Tir : un projectile lent qui éclabousse à l'impact. Arc bouge à peine.",
+    ability: {
+      name: "Fragmentation",
+      effect: "Le prochain tir éclabousse un rayon bien plus large.",
+    },
+    passive: {
+      name: "Éclaboussure",
+      effect: "Chaque tir touche aussi les ennemis proches du point d'impact, avec moins de force.",
+    },
+  },
 };
 
-export const ROSTER: HeroKind[] = ["boulder", "ram", "comet", "hook", "sling", "prism"];
+export const ROSTER: HeroKind[] = [
+  "boulder",
+  "ram",
+  "comet",
+  "hook",
+  "sling",
+  "prism",
+  "vex",
+  "arc",
+];
 
 export function makeBody(id: number, owner: 0 | 1, hero: HeroKind, at: V): Body {
   const def = HEROES[hero];

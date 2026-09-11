@@ -23,6 +23,8 @@ const GLYPH: Record<HeroKind, string> = {
   hook: "H",
   sling: "S",
   prism: "P",
+  vex: "V",
+  arc: "A",
 };
 
 /** A special-attack cast — drives the on-canvas name callout + bloom. */
