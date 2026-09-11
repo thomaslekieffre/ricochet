@@ -11,7 +11,7 @@ que quand la précédente est verte.
 | 3 | Serveur autoritatif — 1v1 en ligne, sans compte | ✅ Fait |
 | 4 | Comptes + matchmaking + file non classée | 🟡 Partiel — **profil local fait** (`src/lib/profile.ts`) ; schéma + Edge Function écrits, pas branchés |
 | 5 | Classé Glicko-2 + saisons | 🟡 Partiel — `glicko2.ts` fait + testé, **note cachée locale vs bot faite**, migrations écrites |
-| 6 | Draft ban/pick + roster complet + replays + spectate | 🟡 Partiel — **replays + ban/pick local faits** |
+| 6 | Draft ban/pick + roster complet + replays + spectate | 🟡 Partiel — **replays + ban/pick local + roster à 8 faits** |
 | 7 | Pass de saison + cosmétiques + déploiement | 🟡 Partiel — migrations + `DEPLOY.md` + Docker |
 
 Légende : 🟡 = la partie qui ne touche pas Supabase/VPS est faite et testée ; le
@@ -367,10 +367,26 @@ create table season_ratings (
   Le mode « En ligne » garde le draft simple (pas de ban) tant que le serveur ne
   gère pas la phase.
 
+**Roster à 8 (fait 2026-09-11)** : 2 héros de plus dans `heroes.ts`/`solver.ts`,
+disponibles partout via `ROSTER` (draft, codex, ban/pick — aucun autre écran à
+toucher) :
+
+- **Vex** (mage) — charge courte puis _Effondrement_ : ouvre une faille qui
+  tire tous les ennemis proches vers elle au lieu de les repousser (inverse de
+  Quake/Éclat). Passive _Ancrage_ : +40 % de traction si elle n'a pas agi au
+  tour précédent (même mécanique que l'Affût de Sling, appliquée à la
+  traction). `sinkhole()` dans `solver.ts`.
+- **Arc** (sniper) — tir lent qui éclabousse à l'impact : en plus de la cible
+  touchée, pousse plus faiblement les ennemis proches du point d'impact
+  (`splashRadius` sur `Projectile`, `splashHit()` dans `solver.ts`).
+  _Fragmentation_ élargit ce rayon d'éclat.
+
+Testé : 2 tests dédiés dans `solver.test.ts` (traction de Vex, éclat d'Arc),
+`scripts/check.ts` exerce désormais Vex + Arc dans son match bot vs bot.
+
 **Reste**
 
 - **Ban/pick en ligne** : phase `draft` dans le serveur avant `turn 1`, UI temps réel.
-- **Roster à 8** : 2 héros (implémentation de leurs capacités dans `solver.ts`).
 - **Spectate** : le serveur diffuse les `turn` d'un match à des sockets observateurs.
 - Défis d'amis, lobbies privés (code de salle).
 
