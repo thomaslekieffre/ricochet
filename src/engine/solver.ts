@@ -448,7 +448,7 @@ function collideBodies(a: Body, b: Body): boolean {
   if (comet) {
     const other = comet === a ? b : a;
     const dir = comet === a ? -1 : 1; // push `other` away from comet
-    const shove = fx.div(fx.fromInt(520), other.mass);
+    const shove = fx.div(T.COMET_PASS_SHOVE, other.mass);
     other.vx += fx.mul(ux, shove * dir);
     other.vy += fx.mul(uy, shove * dir);
     if (!comet.passedThisTurn.includes(other.id)) comet.passedThisTurn.push(other.id);
