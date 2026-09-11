@@ -28,6 +28,72 @@ const DRAFT_PICK_MS = 25_000;
 
 const HOLD: Order = { bodyId: -1, angleIdx: 0, power: 0, ability: false, hold: true };
 
+// PocketBase (docs/PHASES.md P4) : optionnel — absent en dev sans backend branché,
+// les matchs ne sont juste pas persistés (aucun crash, `settleMatch` devient un no-op).
+const POCKETBASE_URL = process.env.POCKETBASE_URL || "";
+const MATCH_SETTLE_SECRET = process.env.MATCH_SETTLE_SECRET || "";
+
+/** Vérifie le JWT PocketBase envoyé par le client et renvoie l'id utilisateur, ou `null`. */
+async function verifyToken(token: string | undefined): Promise<string | null> {
+  if (!token || !POCKETBASE_URL) return null;
+  try {
+    const res = await fetch(`${POCKETBASE_URL}/api/collections/users/auth-refresh`, {
+      method: "POST",
+      headers: { Authorization: token },
+    });
+    if (!res.ok) return null;
+    const body = (await res.json()) as { record?: { id?: string } };
+    return body.record?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
+interface SettleParams {
+  arenaId: string;
+  seat0: string | null;
+  seat1: string | null;
+  team0: HeroKind[];
+  team1: HeroKind[];
+  winner: 0 | 1 | null;
+  hold0: number;
+  hold1: number;
+  turns: number;
+  orderLog: [Order, Order][];
+}
+
+/** `POST /api/settle-match` (pocketbase/pb_hooks/settle-match.pb.js) — best-effort, jamais bloquant. */
+async function settleMatch(p: SettleParams): Promise<void> {
+  if (!POCKETBASE_URL) return;
+  try {
+    const res = await fetch(`${POCKETBASE_URL}/api/settle-match`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(MATCH_SETTLE_SECRET ? { "X-Settle-Secret": MATCH_SETTLE_SECRET } : {}),
+      },
+      body: JSON.stringify({
+        mode: "unranked", // P5 (classé) branchera un vrai matchmaking par note avant d'envoyer "ranked"
+        arena: p.arenaId,
+        seat0: p.seat0,
+        seat1: p.seat1,
+        team0: p.team0,
+        team1: p.team1,
+        winner: p.winner,
+        hold0: p.hold0,
+        hold1: p.hold1,
+        turns: p.turns,
+        orderLog: p.orderLog,
+      }),
+    });
+    if (!res.ok) {
+      console.error(`[ricochet] settle-match a échoué (${res.status})`, await res.text());
+    }
+  } catch (err) {
+    console.error("[ricochet] settle-match injoignable", err);
+  }
+}
+
 let nextId = 1;
 
 /** Matchs en cours, pour le spectate (docs/PHASES.md P6) : `matchId -> Match`. */
@@ -42,6 +108,8 @@ interface Client {
   spectating: Match | null;
   seat: 0 | 1;
   alive: boolean;
+  /** Id utilisateur PocketBase si `QueueSetup.token` a été vérifié avec succès (P4), sinon invité. */
+  userId: string | null;
 }
 
 function send(c: Client, msg: ServerMsg): void {
@@ -171,12 +239,14 @@ class Match {
   private observers = new Set<Client>();
   private timer: NodeJS.Timeout | null = null;
   private closed = false;
+  /** Tous les ordres joués, tour par tour — envoyé à `settle-match` pour rejeu (P4). */
+  private orderLog: [Order, Order][] = [];
 
   constructor(
     readonly id: string,
     private seats: [Client, Client],
-    teamA: HeroKind[],
-    teamB: HeroKind[],
+    private teamA: HeroKind[],
+    private teamB: HeroKind[],
     arenaId: string,
   ) {
     const [a, b] = seats;
@@ -254,6 +324,7 @@ class Match {
     const b = this.pending[1] ?? { ...HOLD };
     const res = resolve(this.state, a, b);
     this.state = res.state;
+    this.orderLog.push([a, b]);
     const deadlineMs = Date.now() + ANIM_GRACE_MS + TURN_DEADLINE_MS;
     const hash = hashState(this.state);
     for (const c of [...this.seats, ...this.observers]) {
@@ -275,6 +346,7 @@ class Match {
       for (const c of this.observers) {
         send(c, { t: "spectateEnded", matchId: this.id, winner: this.state.winner });
       }
+      this.settle(this.state.winner);
       this.close();
       return;
     }
@@ -297,8 +369,25 @@ class Match {
       for (const o of this.observers) {
         send(o, { t: "spectateEnded", matchId: this.id, winner: other.seat });
       }
+      this.settle(other.seat); // forfait — l'adversaire présent gagne
     }
     this.close();
+  }
+
+  /** Persiste le match terminé via `settle-match` (P4) — best-effort, ne bloque jamais la partie. */
+  private settle(winner: 0 | 1 | null): void {
+    void settleMatch({
+      arenaId: this.arenaId,
+      seat0: this.seats[0].userId,
+      seat1: this.seats[1].userId,
+      team0: this.teamA,
+      team1: this.teamB,
+      winner,
+      hold0: this.state.hold[0],
+      hold1: this.state.hold[1],
+      turns: this.state.turn,
+      orderLog: this.orderLog,
+    });
   }
 
   resync(c: Client): void {
@@ -370,6 +459,7 @@ export function createMatchServer(port = DEFAULT_PORT): { http: Server; close: (
       spectating: null,
       seat: 0,
       alive: true,
+      userId: null,
     };
     send(client, { t: "welcome", v: PROTOCOL_VERSION });
 
@@ -389,7 +479,10 @@ export function createMatchServer(port = DEFAULT_PORT): { http: Server; close: (
           client.setup = msg.setup;
           if (!waiting.includes(client)) waiting.push(client);
           send(client, { t: "queued" });
-          tryMatch();
+          void verifyToken(msg.setup.token).then((userId) => {
+            client.userId = userId;
+            tryMatch();
+          });
           break;
         case "cancel": {
           const i = waiting.indexOf(client);

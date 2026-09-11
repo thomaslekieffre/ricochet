@@ -19,6 +19,8 @@ export const DEFAULT_PORT = 8787;
 
 export interface QueueSetup {
   arenaId: string;
+  /** Token d'auth PocketBase courant (`Session.token()`), absent si non connecté — voir P4. */
+  token?: string;
 }
 
 export interface LiveMatchInfo {

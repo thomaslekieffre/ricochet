@@ -3,6 +3,10 @@ dist
 .DS_Store
 .vite
 
+# binaire PocketBase local (téléchargé, pas commité) + ses données de dev
+.pb-bin
+pocketbase/pb_data
+
 # env — jamais commiter les vraies valeurs (garder .env.example)
 .env
 .env.local

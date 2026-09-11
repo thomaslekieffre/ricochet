@@ -82,11 +82,22 @@ au niveau fichier lève `ReferenceError: ... is not defined` une fois appelé
 (le hook ne semble pas hériter des déclarations de fonctions du scope fichier
 au moment de l'exécution de la route).
 
+## Branchement serveur de match ↔ PocketBase (fait 2026-09-11)
+
+`server/server.ts` vérifie le JWT envoyé dans `QueueSetup.token` via
+`POST /auth-refresh` (best-effort : token absent/invalide = invité, jamais
+bloquant) et appelle `POST /api/settle-match` à la fin de chaque match en
+ligne (victoire réelle ou forfait). `src/net/session.ts` gère la session côté
+navigateur en `fetch` brut (pas le SDK officiel — zéro dépendance runtime).
+Testé en vrai : compte créé, match complet joué à travers deux clients
+WebSocket, `matches` + `account_xp` vérifiés en base. Voir `docs/PHASES.md` §
+Phase 4 pour le détail (y compris un bug de schéma trouvé et corrigé au
+passage : `order_log` ne doit pas être `required`).
+
 ## Ce qui reste à faire (avec toi, cf. docs/PHASES.md)
 
-- Brancher le serveur de match (`server/server.ts`) : auth JWT à la connexion
-  WS, appel à `POST /api/settle-match` en fin de partie.
-- Client : écran connexion/profil, `src/net/session.ts` (JWT PocketBase +
-  refresh, `pocketbase` SDK JS officiel).
+- Client : écran connexion/profil (DOM) qui appelle `session.ts`.
+- Matchmaking par fenêtre de note dans `server/server.ts`, puis bascule vers
+  `mode: "ranked"` dans l'appel `settle-match`.
 - Déploiement réel sur le VPS (image Docker officielle PocketBase, service
   Coolify à côté de `match`/`web`).

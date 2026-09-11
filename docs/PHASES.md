@@ -9,7 +9,7 @@ que quand la précédente est verte.
 | 1 | Le choc — solveur de knockback déterministe | ✅ Fait |
 | 2 | Le jeu complet en local — mode Contrôle, 6 héros, 3 arènes, bot, hotseat | ✅ Fait |
 | 3 | Serveur autoritatif — 1v1 en ligne, sans compte | ✅ Fait |
-| 4 | Comptes + matchmaking + file non classée | 🟡 Partiel — **profil local fait** (`src/lib/profile.ts`) ; schéma + Edge Function écrits, pas branchés |
+| 4 | Comptes + matchmaking + file non classée | 🟡 Partiel — **profil local fait**, **serveur ↔ PocketBase branché et testé en vrai** (auth JWT, `settle-match` à chaque match en ligne) ; reste l'écran connexion et le matchmaking par note |
 | 5 | Classé Glicko-2 + saisons | 🟡 Partiel — `glicko2.ts` fait + testé, **note cachée locale vs bot faite**, migrations écrites |
 | 6 | Draft ban/pick + roster complet + replays + spectate | ✅ Fait |
 | 7 | Pass de saison + cosmétiques + déploiement | 🟡 Partiel — migrations + `DEPLOY.md` + Docker |
@@ -224,10 +224,40 @@ locale (v0.40.3) pendant le développement — pas seulement écrites :
   + requêtes réelles).
 - `.env.example` mis à jour (`POCKETBASE_URL`, `MATCH_SETTLE_SECRET`).
 
-**Reste (avec toi)** : écran connexion/profil, `src/net/session.ts` (JWT
-PocketBase + refresh, SDK JS officiel), le serveur de match qui vérifie le JWT
-à la connexion WS et appelle `settle-match` en fin de partie, matchmaking par
-fenêtre de note (`±(60 + 12·s)` d'attente) dans `server/server.ts`.
+**Branchement serveur ↔ PocketBase (fait 2026-09-11)** — `src/net/session.ts` :
+auth PocketBase côté navigateur en `fetch` brut (pas le SDK JS officiel — zéro
+dépendance runtime, voir CLAUDE.md), register/login/logout/refresh, JWT +
+profil persistés en `localStorage`. `QueueSetup.token` transporte ce JWT ;
+`server/server.ts` le vérifie via `POST /auth-refresh` à la connexion
+(`verifyToken`, best-effort — un token absent/invalide = invité, jamais
+d'erreur bloquante). Chaque match en ligne terminé (victoire réelle **ou**
+forfait par déconnexion) appelle `POST /api/settle-match` avec l'`order_log`
+complet et les deux `seat` (userId PocketBase ou `null` si invité). Mode
+envoyé : `"unranked"` pour l'instant — le classé (P5) attend le matchmaking
+par note ci-dessous.
+
+**Testé en vrai** (pas seulement lu) : instance PocketBase locale démarrée
+(`.pb-bin/pocketbase.exe`, non commité — binaire téléchargé en local),
+compte créé via l'API REST, un match complet bot vs bot joué de bout en bout
+à travers deux clients WebSocket réels jusqu'à une vraie victoire (8-15, tour
+53) : la ligne `matches` apparaît avec `seat0` = l'id du compte, l'`order_log`
+complet (53 tours), et `account_xp` du compte passe de 0 à 80. `npm test`,
+`npm run check`, `npm run net-test` (sans PocketBase branché — le serveur
+reste fonctionnel sans backend, `settleMatch` devient un no-op silencieux)
+tous verts après le changement.
+
+**Bug trouvé en testant** : `matches.order_log` était `required: true` —
+PocketBase traite un tableau JSON vide `[]` comme "vide", donc un forfait au
+tour 0 (avant qu'un seul `Order` soit envoyé) faisait échouer `settle-match`.
+Même piège que les `NumberField` à 0 déjà documenté, cette fois sur un
+`JSONField`. Corrigé par une nouvelle migration
+(`1757581400_fix_order_log_required.js`), pas en éditant la migration déjà
+appliquée.
+
+**Reste (avec toi)** : écran connexion/profil (DOM, dans `app.ts`/`ui.ts` —
+`session.ts` est prêt à être branché), matchmaking par fenêtre de note
+(`±(60 + 12·s)` d'attente) dans `server/server.ts`, bascule vers `mode:
+"ranked"` une fois ce matchmaking en place.
 
 ### PocketBase — collections (migrations dans `pocketbase/pb_migrations/`)
 
