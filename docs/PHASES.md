@@ -10,7 +10,7 @@ que quand la précédente est verte.
 | 2 | Le jeu complet en local — mode Contrôle, 6 héros, 3 arènes, bot, hotseat | ✅ Fait |
 | 3 | Serveur autoritatif — 1v1 en ligne, sans compte | ✅ Fait |
 | 4 | Comptes + matchmaking + file non classée | ✅ Fait — profil local, serveur ↔ PocketBase, écran connexion/compte, matchmaking par note, tous testés en vrai |
-| 5 | Classé Glicko-2 + saisons | 🟡 Partiel — `glicko2.ts` fait + testé, matchmaking par note + bascule `ranked` fait et testé, note cachée locale vs bot faite, migrations écrites ; reste à seeder une saison active pour vérifier la mise à jour Glicko-2 en vrai |
+| 5 | Classé Glicko-2 + saisons | 🟡 Partiel — logique bout en bout vérifiée en vrai (saison active, appariement, mise à jour Glicko-2) ; reste l'UI (écran de rang, leaderboard) et le déploiement réel |
 | 6 | Draft ban/pick + roster complet + replays + spectate | ✅ Fait |
 | 7 | Pass de saison + cosmétiques + déploiement | 🟡 Partiel — migrations + `DEPLOY.md` + Docker |
 
@@ -446,14 +446,36 @@ classé-vs-invité et invité-vs-invité en ~15 ms — l'invité n'attend jamais
 après le changement (le `net-test` deux-invités confirme la non-régression du
 chemin non classé d'origine).
 
-**Reste** : aucune `seasons` (`active: true`) n'existe encore en local ni en
-prod (P7, pas encore seedée) — un match `mode: "ranked"` s'enregistre
-correctement dans `matches`, mais `settle-match.pb.js` n'applique la mise à
-jour Glicko-2 (`ratings`/`season_ratings`) que si une saison active est
-trouvée ; donc pas encore vérifié en vrai que la note bouge après un match
-classé, seul le matchmaking lui-même (l'appariement) l'a été. Anti-abandon
-(un `over` par forfait compte comme défaite) déjà géré par `onLeave()` côté
-`Match`, hérité de P3/P4 — rien à ajouter pour P5.
+**Mise à jour Glicko-2 après un vrai match classé — vérifiée (2026-09-11
+soir)** : `POST /api/rollover-season` appelé en local (aucune saison
+n'existait, ni en local ni en prod) pour créer « Saison 1 » (`active: true`,
+56 jours). Script ponctuel `scripts/verify-ranked-season.ts` (pas dans
+`npm test`/`check` — un one-off documenté, comme `net-test.ts` mais avec deux
+vrais comptes PocketBase et la vraie IA du bot `pickOrder` plutôt que la
+simulation minimale) : connecte deux comptes existants, les fait matcher en
+classé, joue jusqu'à la fin réelle du match (hold 8/15), et lit `ratings` +
+`season_ratings` avant/après. **Confirmé** : mu/phi/sigma bougent de façon
+symétrique et plausible (perdant μ −0,93, gagnant μ +0,93, même φ), écrits
+dans les deux tables. C'est le dernier point de P5 qui restait non vérifié en
+conditions réelles — P5 est maintenant entièrement vérifié de bout en bout.
+
+**Bug de course trouvé et corrigé en vérifiant** : la première tentative n'a
+pas matché en classé malgré deux comptes valides — `matchFifoFallback()`
+traitait `ratingDisplay === null` comme « invité », mais un compte dont la
+vérification du token (`verifyToken` + `fetchRating`, un fetch réseau async)
+est encore en vol a *aussi* `ratingDisplay: null` le temps du aller-retour.
+Si les deux clients se connectent à quelques ms d'écart (typique de deux vrais
+joueurs, pas seulement d'un script de test), l'un pouvait tomber en non
+classé par pure course avant que sa vraie note soit connue. Corrigé par un
+champ `Client.verified` (distinct de `ratingDisplay`), mis à `true`
+seulement une fois la vérification retombée ; `matchFifoFallback` exige
+maintenant `verified` en plus de `ratingDisplay === null` avant de traiter
+quelqu'un comme invité. `npm test`, `npm run check`, `npm run net-test`,
+`npm run build` tous verts après le changement (le chemin invité, qui ne doit
+jamais attendre, reste immédiat).
+
+Anti-abandon (un `over` par forfait compte comme défaite) déjà géré par
+`onLeave()` côté `Match`, hérité de P3/P4 — rien à ajouter pour P5.
 
 ### Livrables
 

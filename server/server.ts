@@ -156,6 +156,16 @@ interface Client {
    * au matchmaking classé.
    */
   ratingDisplay: number | null;
+  /**
+   * `false` tant que la vérification du token (`verifyToken` + `fetchRating`)
+   * n'est pas retombée pour CE client. Distinct de `ratingDisplay === null` :
+   * un compte dont le token est encore en vol a aussi `ratingDisplay: null`
+   * le temps du fetch, mais n'est pas un invité — `matchFifoFallback` doit
+   * attendre `verified` avant de le traiter comme tel, sinon un match entre
+   * deux comptes classés connectés à quelques ms d'écart peut basculer en
+   * non classé par pure course (bug trouvé en vérifiant P5 en vrai).
+   */
+  verified: boolean;
 }
 
 function send(c: Client, msg: ServerMsg): void {
@@ -555,7 +565,7 @@ export function createMatchServer(port = DEFAULT_PORT): { http: Server; close: (
   const matchFifoFallback = (): void => {
     for (;;) {
       if (waiting.length < 2) return;
-      const guestIdx = waiting.findIndex((c) => c.alive && c.ratingDisplay === null);
+      const guestIdx = waiting.findIndex((c) => c.alive && c.verified && c.ratingDisplay === null);
       if (guestIdx >= 0) {
         const otherIdx = waiting.findIndex((c, i) => i !== guestIdx && c.alive);
         if (otherIdx < 0) return;
@@ -595,6 +605,7 @@ export function createMatchServer(port = DEFAULT_PORT): { http: Server; close: (
       userId: null,
       queuedAt: 0,
       ratingDisplay: null,
+      verified: false,
     };
     send(client, { t: "welcome", v: PROTOCOL_VERSION });
 
@@ -614,11 +625,13 @@ export function createMatchServer(port = DEFAULT_PORT): { http: Server; close: (
           client.setup = msg.setup;
           client.queuedAt = Date.now();
           client.ratingDisplay = null;
+          client.verified = false;
           if (!waiting.includes(client)) waiting.push(client);
           send(client, { t: "queued" });
           void verifyToken(msg.setup.token).then(async (userId) => {
             client.userId = userId;
             client.ratingDisplay = userId ? await fetchRating(userId) : null;
+            client.verified = true;
             tryMatch();
           });
           break;
