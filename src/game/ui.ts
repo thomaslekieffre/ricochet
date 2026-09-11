@@ -502,6 +502,8 @@ export function profileScreen(
   onBack: () => void,
   onRename: () => void,
   onReset: () => void,
+  onAccount: () => void,
+  accountLine: string,
 ): void {
   const pct = Math.round((v.into / v.span) * 100);
   const rows =
@@ -539,6 +541,11 @@ export function profileScreen(
       <h3 class="hh">Derniers matchs</h3>
       <div class="hlist">${rows}</div>
 
+      <p class="sub" style="margin-top:1.2rem">${esc(accountLine)}</p>
+      <div class="rowbtns">
+        <button class="cta ghost" id="account">Compte PocketBase</button>
+      </div>
+
       <div class="rowbtns" style="margin-top:1.2rem">
         <button class="cta ghost" id="rename">Changer de pseudo</button>
         <button class="cta ghost danger" id="reset">Réinitialiser</button>
@@ -552,6 +559,10 @@ export function profileScreen(
   el.querySelector("#back")!.addEventListener("click", () => {
     hideOverlay();
     onBack();
+  });
+  el.querySelector("#account")!.addEventListener("click", () => {
+    hideOverlay();
+    onAccount();
   });
   el.querySelector("#rename")!.addEventListener("click", () => {
     hideOverlay();
@@ -683,6 +694,123 @@ export function spectateListScreen(
     hideOverlay();
     onCancel();
   });
+}
+
+// ---- compte PocketBase (docs/PHASES.md P4) ----------------------------
+
+export interface AccountUser {
+  email: string;
+  name: string;
+  account_xp: number;
+}
+
+/**
+ * Écran connexion / inscription / déconnexion contre PocketBase
+ * (`src/net/session.ts`). Purement DOM, ne touche jamais l'API directement —
+ * `onLogin`/`onRegister` font l'appel réseau et relancent l'écran en cas
+ * d'erreur (message renvoyé par `AuthError`).
+ */
+export function accountScreen(
+  user: AccountUser | null,
+  onLogin: (email: string, password: string) => Promise<void>,
+  onRegister: (email: string, password: string, name: string) => Promise<void>,
+  onLogout: () => void,
+  onBack: () => void,
+): void {
+  let mode: "login" | "register" = "login";
+  let error = "";
+  let busy = false;
+
+  const render = (): void => {
+    if (user) {
+      const el = show(`
+        <div class="screen">
+          <h2>Ton compte</h2>
+          <p class="sub">Connecté en tant que <b>${esc(user.name || user.email)}</b></p>
+          <p class="sub">${esc(user.email)} · ${user.account_xp} XP de compte</p>
+          <div class="rowbtns" style="margin-top:1.1rem">
+            <button class="cta ghost danger" id="logout">Se déconnecter</button>
+          </div>
+          <button class="cta" id="back" style="margin-top:0.7rem">Retour</button>
+        </div>
+      `);
+      el.querySelector("#logout")!.addEventListener("click", () => {
+        onLogout();
+        user = null;
+        render();
+      });
+      el.querySelector("#back")!.addEventListener("click", () => {
+        hideOverlay();
+        onBack();
+      });
+      return;
+    }
+
+    const el = show(`
+      <div class="screen">
+        <h2>${mode === "login" ? "Se connecter" : "Créer un compte"}</h2>
+        <p class="sub">Compte PocketBase — synchronise ta note classée entre navigateurs.
+          Jouer sans compte reste possible (bot, hotseat, en ligne non identifié).</p>
+        ${mode === "register" ? `<input id="aname" class="tin" maxlength="16" autocomplete="username" spellcheck="false" placeholder="Pseudo" />` : ""}
+        <input id="aemail" class="tin" type="email" autocomplete="email" spellcheck="false" placeholder="Email" style="margin-top:0.5rem" />
+        <input id="apass" class="tin" type="password" autocomplete="${mode === "login" ? "current-password" : "new-password"}" placeholder="Mot de passe" style="margin-top:0.5rem" />
+        <p class="sub err" id="aerr">${esc(error)}&nbsp;</p>
+        <div class="rowbtns">
+          <button class="cta" id="go" ${busy ? "disabled" : ""}>${busy ? "…" : mode === "login" ? "Se connecter" : "Créer le compte"}</button>
+          <button class="cta ghost" id="back">Retour</button>
+        </div>
+        <button class="linkbtn" id="swap" style="margin-top:0.9rem">${mode === "login" ? "Pas de compte ? En créer un" : "Déjà un compte ? Se connecter"}</button>
+      </div>
+    `);
+
+    const emailIn = el.querySelector<HTMLInputElement>("#aemail")!;
+    const passIn = el.querySelector<HTMLInputElement>("#apass")!;
+    const nameIn = el.querySelector<HTMLInputElement>("#aname");
+
+    const submit = async (): Promise<void> => {
+      const email = emailIn.value.trim();
+      const password = passIn.value;
+      if (!email || !password) {
+        error = "Email et mot de passe requis.";
+        render();
+        return;
+      }
+      busy = true;
+      error = "";
+      render();
+      try {
+        if (mode === "login") {
+          await onLogin(email, password);
+        } else {
+          const name = nameIn?.value.trim() || email.split("@")[0]!;
+          await onRegister(email, password, name);
+        }
+        hideOverlay();
+        onBack();
+      } catch (e) {
+        busy = false;
+        error = (e as Error).message || "Échec — vérifie tes identifiants.";
+        render();
+      }
+    };
+
+    el.querySelector("#go")!.addEventListener("click", () => void submit());
+    passIn.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") void submit();
+    });
+    el.querySelector("#swap")!.addEventListener("click", () => {
+      mode = mode === "login" ? "register" : "login";
+      error = "";
+      render();
+    });
+    el.querySelector("#back")!.addEventListener("click", () => {
+      hideOverlay();
+      onBack();
+    });
+    setTimeout(() => (nameIn ?? emailIn).focus(), 0);
+  };
+
+  render();
 }
 
 export function noticeScreen(title: string, sub: string, onOk: () => void): void {

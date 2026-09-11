@@ -1,6 +1,7 @@
 import type { HeroKind } from "../engine/index";
 import { NetClient } from "../net/client";
 import type { ServerMsg } from "../net/protocol";
+import { Session } from "../net/session";
 import {
   applyOutcome,
   clearProfile,
@@ -19,6 +20,7 @@ import { ReplayPlayer } from "./replay-player";
 import { downloadRecording, makeRecording, parseRecording } from "./replay";
 import { SpectateView } from "./spectate-view";
 import {
+  accountScreen,
   banPickScreen,
   codexScreen,
   hideOverlay,
@@ -73,6 +75,8 @@ export class App {
         this.toMenu();
       });
     }
+    // best-effort, silencieux si non connecté ou serveur PocketBase injoignable
+    void Session.refresh();
   }
 
   private toMenu(): void {
@@ -222,6 +226,11 @@ export class App {
       };
     });
 
+    const su = Session.user();
+    const accountLine = su
+      ? `Compte PocketBase : ${su.email}`
+      : "Pas de compte PocketBase — profil local à ce navigateur uniquement.";
+
     profileScreen(
       {
         name: p.name,
@@ -240,6 +249,19 @@ export class App {
       () => this.toMenu(),
       () => this.renameFlow(),
       () => this.resetFlow(),
+      () => this.showAccount(),
+      accountLine,
+    );
+  }
+
+  private showAccount(): void {
+    const su = Session.user();
+    accountScreen(
+      su,
+      (email, password) => Session.login(email, password).then(() => {}),
+      (email, password, name) => Session.register(email, password, name).then(() => {}),
+      () => Session.logout(),
+      () => this.showProfile(),
     );
   }
 
@@ -314,7 +336,9 @@ export class App {
 
     client
       .connect()
-      .then(() => client.send({ t: "queue", setup: { arenaId: o.arenaId } }))
+      .then(() =>
+        client.send({ t: "queue", setup: { arenaId: o.arenaId, token: Session.token() } }),
+      )
       .catch(() => {
         this.teardown();
         noticeScreen(
@@ -342,6 +366,8 @@ export class App {
       onOver: (winner) => {
         this.net = null;
         client.close();
+        // le serveur a appelé settle-match — resynchronise l'XP de compte si connecté
+        void Session.refresh();
         const score = this.match?.holdScore ?? [0, 0];
         resultScreen(
           winner === seat ? "Gagné" : "Perdu",

@@ -94,9 +94,16 @@ WebSocket, `matches` + `account_xp` vérifiés en base. Voir `docs/PHASES.md` §
 Phase 4 pour le détail (y compris un bug de schéma trouvé et corrigé au
 passage : `order_log` ne doit pas être `required`).
 
+## Écran connexion/compte (fait 2026-09-11)
+
+`src/game/ui.ts` (`accountScreen`) + `src/game/app.ts` (`showAccount`) :
+login / inscription / déconnexion contre `session.ts`, accessible depuis
+l'écran profil. Testé dans le navigateur sans instance PocketBase active
+(validation des champs, erreur réseau traduite en français). Reste à valider
+contre une instance PocketBase réelle.
+
 ## Ce qui reste à faire (avec toi, cf. docs/PHASES.md)
 
-- Client : écran connexion/profil (DOM) qui appelle `session.ts`.
 - Matchmaking par fenêtre de note dans `server/server.ts`, puis bascule vers
   `mode: "ranked"` dans l'appel `settle-match`.
 - Déploiement réel sur le VPS (image Docker officielle PocketBase, service

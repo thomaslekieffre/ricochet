@@ -9,7 +9,7 @@ que quand la précédente est verte.
 | 1 | Le choc — solveur de knockback déterministe | ✅ Fait |
 | 2 | Le jeu complet en local — mode Contrôle, 6 héros, 3 arènes, bot, hotseat | ✅ Fait |
 | 3 | Serveur autoritatif — 1v1 en ligne, sans compte | ✅ Fait |
-| 4 | Comptes + matchmaking + file non classée | 🟡 Partiel — **profil local fait**, **serveur ↔ PocketBase branché et testé en vrai** (auth JWT, `settle-match` à chaque match en ligne) ; reste l'écran connexion et le matchmaking par note |
+| 4 | Comptes + matchmaking + file non classée | 🟡 Partiel — **profil local fait**, **serveur ↔ PocketBase branché et testé en vrai** (auth JWT, `settle-match` à chaque match en ligne), **écran connexion/compte fait** ; reste le matchmaking par note |
 | 5 | Classé Glicko-2 + saisons | 🟡 Partiel — `glicko2.ts` fait + testé, **note cachée locale vs bot faite**, migrations écrites |
 | 6 | Draft ban/pick + roster complet + replays + spectate | ✅ Fait |
 | 7 | Pass de saison + cosmétiques + déploiement | 🟡 Partiel — migrations + `DEPLOY.md` + Docker |
@@ -254,10 +254,23 @@ Même piège que les `NumberField` à 0 déjà documenté, cette fois sur un
 (`1757581400_fix_order_log_required.js`), pas en éditant la migration déjà
 appliquée.
 
-**Reste (avec toi)** : écran connexion/profil (DOM, dans `app.ts`/`ui.ts` —
-`session.ts` est prêt à être branché), matchmaking par fenêtre de note
-(`±(60 + 12·s)` d'attente) dans `server/server.ts`, bascule vers `mode:
-"ranked"` une fois ce matchmaking en place.
+**Écran connexion/compte (fait 2026-09-11)** — `ui.ts` (`accountScreen`) +
+`app.ts` (`showAccount`) : login / inscription / déconnexion contre
+`session.ts`, accessible depuis l'écran profil (bouton « Compte PocketBase »,
+avec la ligne d'état connecté/invité). Le token PocketBase est envoyé dans
+`QueueSetup.token` à la mise en file en ligne ; `Session.refresh()` est
+rappelé au lancement de l'app et après chaque match en ligne pour resynchroniser
+l'XP de compte écrite par `settle-match`. Testé en vrai dans le navigateur
+(`npm run dev`, sans instance PocketBase active) : validation des champs,
+erreur réseau traduite proprement (« Serveur de comptes injoignable — réessaie
+plus tard. » plutôt que le `Failed to fetch` brut), bascule login/inscription,
+retour à l'écran profil. Pas encore testé avec une instance PocketBase réelle
+en local (le login/l'inscription réels restent à valider en conditions
+réelles).
+
+**Reste (avec toi)** : matchmaking par fenêtre de note (`±(60 + 12·s)`
+d'attente) dans `server/server.ts`, bascule vers `mode: "ranked"` une fois ce
+matchmaking en place.
 
 ### PocketBase — collections (migrations dans `pocketbase/pb_migrations/`)
 
@@ -301,8 +314,8 @@ collections PocketBase classiques :
 
 ### Livrables
 
-- Écran connexion / profil (choix du pseudo).
-- `src/net/session.ts` : gestion du JWT PocketBase, refresh.
+- Écran connexion / profil (choix du pseudo). ✅
+- `src/net/session.ts` : gestion du JWT PocketBase, refresh. ✅
 - File non classée fonctionnelle bout en bout.
 - Le serveur de match appelle `POST /api/settle-match` en fin de partie
   (fait, `pocketbase/pb_hooks/settle-match.pb.js` — reste à brancher l'appel

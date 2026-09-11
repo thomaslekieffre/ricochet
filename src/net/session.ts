@@ -56,10 +56,15 @@ export class AuthError extends Error {}
 let current: StoredSession | null = load();
 
 async function pbFetch(path: string, init: RequestInit): Promise<unknown> {
-  const res = await fetch(`${pocketbaseUrl()}${path}`, {
-    ...init,
-    headers: { "Content-Type": "application/json", ...(init.headers ?? {}) },
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${pocketbaseUrl()}${path}`, {
+      ...init,
+      headers: { "Content-Type": "application/json", ...(init.headers ?? {}) },
+    });
+  } catch {
+    throw new AuthError("Serveur de comptes injoignable — réessaie plus tard.");
+  }
   const body = await res.json().catch(() => null);
   if (!res.ok) {
     const msg = (body as { message?: string } | null)?.message ?? `${res.status}`;
