@@ -158,10 +158,40 @@ camp (vert/rose) sous les sprites, ajoutées avec les sprites eux-mêmes plus
 tôt dans la journée, confirmées lisibles même quand les deux camps partagent
 le même héros (ex. Boulder vs Boulder, non banni des deux côtés).
 
-**Reste dans P2 (polish, pas bloquant)** : **animations par héros** —
-prochain gros chantier voté avec Zoe (les sprites sont des poses statiques,
-le squash/stretch/glow procédural s'applique par-dessus, le flash de choc
-ci-dessus est un pis-aller en attendant de vraies frames d'impact/KO) ;
+**Animations par héros — chantier démarré, en pause sur quota (2026-09-11)** :
+prochain gros chantier voté avec Zoe, en vraies frames dessinées (pas de
+l'animation procédurale) plutôt que le flash de choc ci-dessus, qui reste un
+pis-aller. Approche retenue : 2 héros d'abord pour valider tout le pipeline
+(génération → détourage → intégration), **Boulder** (brawler, silhouette
+simple) et **Comet** (dasher, contraste de style), avec pour chacun une pose
+« touché » (flinch/recul) et une pose « KO » en plus de la pose existante qui
+sert d'idle — donc 4 générations. **Bloqué immédiatement** : le quota ZeroGPU
+gratuit du compte HF créé plus tôt dans la journée (cf. section sprites
+ci-dessus) était déjà déchargé par les 6 sprites générés ce jour-là ; premier
+essai de pose « touché » pour Boulder → « You've hit your daily ZeroGPU
+limit », reset quotidien (pas d'heure précise donnée par HF, probablement
+minuit UTC). **Rien généré, rien intégré côté animations** — seul le flash de
+choc procédural (section précédente) est en prod. Repartir de : le prompt
+Boulder « touché » ci-dessous, à relancer sur
+`https://huggingface.co/spaces/black-forest-labs/FLUX.1-schnell` (compte HF
+gratuit déjà créé par Zoe) une fois le quota revenu :
+
+> flat 2D vector game icon, full body massive heavy brawler character
+> flinching backward from a hit, octagonal broad armored body, leaning back
+> off balance, one arm raised defensively, bold thick black outline, single
+> flat solid light grey silhouette fill, no shading, no gradient, no 3D
+> render, minimalist esports mascot style, plain solid pure white background,
+> centered, no text
+
+Intégration technique prévue côté `renderer.ts` une fois les fichiers en
+main : étendre `SPRITE_URL` (actuellement `Record<HeroKind, string>`) en
+`Record<HeroKind, {idle: string; hit?: string; ko?: string}>`, retomber sur
+`idle` si un état n'a pas encore de pose dédiée (déploiement hero par hero
+sans tout casser), et basculer `bv.sprite.texture` sur les deux hooks déjà en
+place dans `syncBody` (chute de vitesse, transition alive→false) — les mêmes
+qui alimentent déjà `renderImpacts()`.
+
+**Reste dans P2 (polish, pas bloquant), au-delà des animations** :
 équilibrage réel des 8 héros par des parties ; code-splitting du bundle si sa
 taille devient gênante ; qualité visuelle inégale entre héros (Boulder/Ram en
 rendu « figurine » plein, Sling/Arc en trait fin plus sobre) — pas retouché,
