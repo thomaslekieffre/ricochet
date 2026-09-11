@@ -38,8 +38,12 @@ Regénérer la table de sinus figée (rare) : `node scripts/gen-trig-table.mjs`.
 - **TypeScript strict** + **Vite** — pas de framework, rendu **Canvas 2D**.
 - **Vitest** pour les tests du moteur.
 - Aucune dépendance runtime. Audio synthétisé (WebAudio), aucun asset binaire.
-- Cible des phases réseau : **Bun + ws** (serveur), **Supabase** (Postgres +
-  Auth), déploiement **Coolify** sur le VPS. Rien de tout ça n'est encore branché.
+- Serveur de match : **Node + ws** (voir `docs/PHASES.md` P3 — Bun visé à
+  l'origine, indisponible sur la machine de dev, `ws` est portable). Cible des
+  phases comptes/classé : **PocketBase** (SQLite + Auth + hooks JS, un seul
+  binaire auto-hébergé — pas Supabase, décision du 2026-09-11), déploiement
+  **Coolify** sur le VPS. Schéma + routes écrits et testés en local
+  (`pocketbase/`), pas encore branchés au serveur de match ni déployés.
 
 ### Découpage
 
@@ -70,7 +74,7 @@ src/
   main.ts  styles.css
 server/server.ts     serveur de match autoritatif (Node + ws) — P3
 scripts/             check.ts, net-test.ts, gen-trig-table.mjs
-supabase/            migrations SQL (P4/5/7) + function settle-match (non branché)
+pocketbase/          collections (P4/5/7) + hooks settle-match/rollover-season (non branché)
 docs/                playbook, PHASES.md, DEPLOY.md
 ```
 

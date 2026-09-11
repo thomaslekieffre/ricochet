@@ -14,8 +14,9 @@ que quand la précédente est verte.
 | 6 | Draft ban/pick + roster complet + replays + spectate | ✅ Fait |
 | 7 | Pass de saison + cosmétiques + déploiement | 🟡 Partiel — migrations + `DEPLOY.md` + Docker |
 
-Légende : 🟡 = la partie qui ne touche pas Supabase/VPS est faite et testée ; le
-reste attend les credentials et se fait avec toi.
+Légende : 🟡 = la partie qui ne touche pas le VPS de prod est faite et testée
+(y compris contre une instance PocketBase locale, voir P4/P5/P7) ; le reste
+attend le déploiement réel et se fait avec toi.
 
 ---
 
@@ -184,7 +185,7 @@ Serveur → client :
 
 **Objectif** : identité persistante et mise en relation par niveau caché.
 
-**Fait — version locale (`src/lib/profile.ts`, sans Supabase)**
+**Fait — version locale (`src/lib/profile.ts`, sans PocketBase)**
 
 - Profil unique en `localStorage` : pseudo, XP de compte + courbe de niveau,
   compteurs V/D, série, historique des 40 derniers matchs.
@@ -196,71 +197,71 @@ Serveur → client :
   écran profil (stats + historique + renommer + réinitialiser), bloc de
   progression sur l'écran de résultat (XP gagnée, delta de note, montée de niveau).
 - 11 tests Vitest (`src/lib/profile.test.ts`).
-- Le jour où Supabase est branché, ce module devient le cache local du profil
-  serveur.
+- Le jour où PocketBase est branché, ce module devient le cache local du
+  profil serveur.
 
-**Fait (hors infra)**
+**Fait (hors infra, testé en local — 2026-09-11, voir `pocketbase/README.md`)**
 
-- `supabase/migrations/0001_core.sql` — `profiles`, `ratings`, `matches` + RLS
-  (lecture publique, écritures ratings/matches réservées au service role) +
-  trigger `profile_created` + `bump_account_xp`.
-- `supabase/functions/settle-match/index.ts` — insère la ligne `matches`
-  (rejouable via `order_log`), et si `ranked` recalcule Glicko-2 et appelle le
-  RPC. Glicko-2 inline, à garder synchro avec `src/lib/glicko2.ts`.
-- `.env.example`.
+Le projet utilise **PocketBase** (SQLite + Auth + hooks JS, un seul binaire
+auto-hébergé sur le VPS) plutôt que Supabase — choix délibéré pour
+s'auto-héberger entièrement sur l'infra déjà prévue (VPS + Coolify), sans
+dépendre d'une plateforme tierce. Les migrations, routes et règles d'accès ont
+été **appliquées et appelées pour de vrai** contre une instance PocketBase
+locale (v0.40.3) pendant le développement — pas seulement écrites :
 
-**Reste (avec toi, besoin Supabase)** : écran connexion/profil, `src/net/session.ts`
-(JWT + refresh), le serveur de match qui vérifie le JWT à la connexion WS et
-appelle `settle-match` en fin de partie, matchmaking par fenêtre de note
-(`±(60 + 12·s)` d'attente) dans `server/server.ts`.
+- `pocketbase/pb_migrations/1757581200_core.js` — étend la collection `users`
+  intégrée (pseudo déjà natif, + `account_xp`, `country`), collections
+  `ratings` et `matches`. Écriture réservée au superuser (équivalent service
+  role) ; lecture publique.
+- `pocketbase/pb_hooks/settle-match.pb.js` — route `POST /api/settle-match` :
+  insère `matches` (rejouable via `order_log`), et si `ranked` recalcule
+  Glicko-2 et l'applique atomiquement (`$app.runInTransaction`). Glicko-2
+  dupliqué en JS pur (goja n'importe pas les modules TS du dépôt), à garder
+  synchro avec `src/lib/glicko2.ts`. Protégée par un secret partagé
+  (`X-Settle-Secret`).
+- `pocketbase/Dockerfile` — télécharge le binaire PocketBase, embarque
+  migrations + hooks ; build et conteneur testés (`docker build` + `docker run`
+  + requêtes réelles).
+- `.env.example` mis à jour (`POCKETBASE_URL`, `MATCH_SETTLE_SECRET`).
 
-### Supabase — schéma (migrations dans `supabase/migrations/`)
+**Reste (avec toi)** : écran connexion/profil, `src/net/session.ts` (JWT
+PocketBase + refresh, SDK JS officiel), le serveur de match qui vérifie le JWT
+à la connexion WS et appelle `settle-match` en fin de partie, matchmaking par
+fenêtre de note (`±(60 + 12·s)` d'attente) dans `server/server.ts`.
 
-```sql
--- profils (1-1 avec auth.users)
-create table profiles (
-  id           uuid primary key references auth.users on delete cascade,
-  username     text unique not null check (char_length(username) between 3 and 16),
-  created_at   timestamptz not null default now(),
-  account_xp   integer not null default 0,
-  country      text
-);
+### PocketBase — collections (migrations dans `pocketbase/pb_migrations/`)
 
--- notation cachée (une ligne par joueur, mise à jour Phase 5)
-create table ratings (
-  profile_id   uuid primary key references profiles on delete cascade,
-  mu           double precision not null default 1500,   -- Glicko-2
-  phi          double precision not null default 350,
-  sigma        double precision not null default 0.06,
-  games        integer not null default 0,
-  updated_at   timestamptz not null default now()
-);
+`users` est la collection auth intégrée de PocketBase (pseudo, email, mot de
+passe déjà gérés) — pas de table `profiles` séparée comme en SQL, juste des
+champs en plus (`account_xp`, `country`). `ratings` et `matches` sont des
+collections PocketBase classiques :
 
--- matchs joués (source de vérité pour audit + replay)
-create table matches (
-  id           uuid primary key default gen_random_uuid(),
-  mode         text not null,            -- 'unranked' | 'ranked'
-  season_id    integer references seasons(id),
-  arena        text not null,
-  seat0        uuid references profiles,
-  seat1        uuid references profiles,
-  team0        text[] not null,
-  team1        text[] not null,
-  winner       smallint,                 -- 0 | 1 | null
-  hold0        integer, hold1 integer,
-  turns        integer,
-  order_log    jsonb not null,           -- [[OrderA, OrderB], ...] -> rejouable
-  created_at   timestamptz not null default now(),
-  ended_at     timestamptz
-);
+```js
+// ratings — une ligne par utilisateur, notation Glicko-2 courante
+{ user: relation(users, unique), mu: number, phi: number, sigma: number, games: number }
+
+// matches — source de vérité, rejouable via order_log
+{
+  mode: select("unranked"|"ranked"), season: relation(seasons)?,
+  arena: text, seat0: relation(users)?, seat1: relation(users)?,
+  team0: json, team1: json,               // [HeroKind, HeroKind, HeroKind]
+  winner: number?, hold0: number, hold1: number, turns: number,
+  order_log: json,                        // [[OrderA, OrderB], ...] -> rejouable
+  ended: date,
+}
 ```
 
-- **RLS** : `profiles` lisible par tous, modifiable par son propriétaire.
-  `ratings` lisible par tous, **écrit uniquement par une Edge Function**
-  `settle-match` (service role) — jamais par le client.
-- **Auth** : Supabase Auth (e-mail + OAuth Google/Discord). Le client obtient un
-  JWT ; le serveur de match le vérifie (`supabase.auth.getUser(jwt)`) à la
-  connexion WS et attache `profile_id` au siège.
+- **Règles d'accès** (équivalent des RLS Supabase) : `listRule`/`viewRule = ""`
+  (lecture publique) sur `ratings` et `matches` ; `createRule`/`updateRule` =
+  `null` (personne, même authentifié — **écrit uniquement par le superuser**,
+  celui que le serveur de match utilise, jamais par un client).
+- **Auth** : Auth PocketBase (email/mot de passe natif, OAuth configurable
+  depuis le dashboard admin). Le client obtient un JWT PocketBase ; le serveur
+  de match le vérifie à la connexion WS et attache l'id utilisateur au siège.
+- **Piège trouvé en testant** : ne jamais `required: true` sur un champ nombre
+  qui peut légitimement valoir 0 (XP de départ, compteur de parties…) —
+  PocketBase traite 0 comme « vide » et rejette l'écriture. Voir les
+  commentaires dans les fichiers de migration.
 
 ### Matchmaking
 
@@ -271,9 +272,11 @@ create table matches (
 ### Livrables
 
 - Écran connexion / profil (choix du pseudo).
-- `src/net/session.ts` : gestion du JWT, refresh.
+- `src/net/session.ts` : gestion du JWT PocketBase, refresh.
 - File non classée fonctionnelle bout en bout.
-- Edge Function `record-match` : insère la ligne `matches` en fin de partie.
+- Le serveur de match appelle `POST /api/settle-match` en fin de partie
+  (fait, `pocketbase/pb_hooks/settle-match.pb.js` — reste à brancher l'appel
+  côté `server/server.ts`).
 
 ---
 
@@ -288,9 +291,14 @@ create table matches (
 - `src/lib/glicko2.test.ts` — **reproduit l'exemple de référence de Glickman**
   (1464,06 / 151,52 / 0,05999), + convergence compte neuf, decay plafonné,
   paliers ordonnés.
-- `supabase/migrations/0002_ranked.sql` — `seasons`, `season_ratings` (avec
-  `peak_rating`, `placement_left`), RPC `settle_ranked_match` (application
-  atomique + pic), RPC `rollover_season` (soft reset).
+- `pocketbase/pb_migrations/1757581260_ranked.js` — collections `seasons`,
+  `season_ratings` (avec `peak_rating`, `placement_left`), lien
+  `matches.season`. Le règlement atomique (ex-RPC `settle_ranked_match`) vit
+  dans `settle-match.pb.js` ; la bascule de saison (ex-RPC `rollover_season`)
+  dans `pocketbase/pb_hooks/rollover-season.pb.js` (route
+  `POST /api/rollover-season`, soft reset). **Les deux testés pour de vrai**
+  contre une instance PocketBase locale : match classé réglé, notes symétriques
+  correctes (Glicko-2 vérifié), bascule de saison avec soft reset appliqué.
 
 **Reste (avec toi)** : écran de rang + jauge de palier, leaderboard Élite (top 500),
 brancher `settle-match` en mode `ranked`, cron de bascule de saison.
@@ -424,34 +432,29 @@ salle).
 
 ## Phase 7 — Pass de saison, cosmétiques, déploiement 🟡
 
-**Fait** : `supabase/migrations/0003_cosmetics.sql` (`cosmetics`, `ownership`,
-`battlepass_progress` + RPC `grant_battlepass_xp`), `Dockerfile` (cibles `web` /
-`match`), `docker-compose.yml`, `docs/DEPLOY.md` (runbook complet).
-**Reste** : contenu (table palier→cosmétique), UI vestiaire/pass, déploiement réel
-sur le VPS.
-
+**Fait** : `pocketbase/pb_migrations/1757581320_cosmetics.js` (`cosmetics`,
+`ownership`, `battlepass_progress`), XP de pass + déblocage géré dans
+`settle-match.pb.js` (`grantBattlepassXp`) — **testé pour de vrai** (un match
+classé accorde bien 120 XP de pass, débloque les cosmétiques `battlepass_free`
+au palier franchi). `Dockerfile` (cibles `web`/`match`) + `pocketbase/Dockerfile`
+(build et conteneur testés), `docker-compose.yml` (3 services), `docs/DEPLOY.md`
+(runbook complet).
+**Reste** : contenu (table palier→cosmétique précise), UI vestiaire/pass,
+déploiement réel sur le VPS.
 
 ### Cosmétiques (intégrité compétitive : zéro `power` à vendre)
 
-```sql
-create table cosmetics (
-  id text primary key, kind text not null,       -- 'hero_skin'|'arena_skin'|'border'|'title'
-  name text not null, rarity text not null, source text not null
-);
-create table ownership (
-  profile_id uuid references profiles(id),
-  cosmetic_id text references cosmetics(id),
-  acquired_at timestamptz not null default now(),
-  primary key (profile_id, cosmetic_id)
-);
-create table battlepass_progress (
-  season_id integer references seasons(id),
-  profile_id uuid references profiles(id),
-  tier integer not null default 0,
-  xp integer not null default 0,
-  premium boolean not null default false,
-  primary key (season_id, profile_id)
-);
+```js
+// cosmetics — slug stable (référencé par le contenu), pas l'id PocketBase interne
+{ slug: text(unique), kind: select("hero_skin"|"arena_skin"|"border"|"title"),
+  name: text, rarity: select("common"|"rare"|"epic"|"seasonal"),
+  source: select("battlepass_free"|"battlepass_premium"|"rank_reward"|"shop") }
+
+// ownership — qui possède quoi
+{ user: relation(users), cosmetic: relation(cosmetics), acquired: autodate }
+
+// battlepass_progress — progression de saison par joueur
+{ season: relation(seasons), user: relation(users), tier: number, xp: number, premium: bool }
 ```
 
 - XP de pass gagné en jouant (tout mode). Palier = récompense (piste gratuite +
@@ -460,11 +463,14 @@ create table battlepass_progress (
 ### Déploiement (Coolify sur le VPS)
 
 - Conteneur **web** : build Vite statique servi par un nginx/caddy.
-- Conteneur **serveur de match** (Bun) : WS + matchmaking. Scalable
+- Conteneur **serveur de match** (Node) : WS + matchmaking. Scalable
   horizontalement plus tard — le matchmaker assigne un match à une instance.
-- **Supabase** : instance existante (voir `~/.claude/.../memory/infra.md`).
-  Migrations via `supabase db push`.
-- Santé : `/healthz` sur le serveur ; logs structurés (un objet JSON par tour).
+- Conteneur **pocketbase** (`pocketbase/Dockerfile`) : SQLite + Auth, image
+  buildée et testée en local (voir `pocketbase/README.md`). Volume `pb_data` à
+  sauvegarder régulièrement — pas de réplication managée comme Supabase, c'est
+  nous qui en sommes responsables.
+- Santé : `/healthz` sur le serveur de match, `/api/health` sur PocketBase ;
+  logs structurés (un objet JSON par tour côté match).
 - **Anti-triche en prod** : rate-limit par IP/JWT sur `queue` et `order` ;
   détection d'anomalies de winrate/temps de réponse en tâche de fond ; tout match
   rejouable depuis `order_log`.

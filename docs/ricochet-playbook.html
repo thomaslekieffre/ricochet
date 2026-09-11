@@ -724,8 +724,8 @@
         <tr><td class="k">Temps réel</td><td>WebSocket simple. Pas besoin d'UDP/WebRTC vu la cadence par tour.</td></tr>
         <tr><td class="k">Serveur de jeu</td><td><strong>Bun</strong> + <code style="font-family:var(--f-mono);font-size:.85em">ws</code>. Un process héberge N&nbsp;matchs&nbsp;; CPU par match ≈ nul.</td></tr>
         <tr><td class="k">Matchmaking</td><td>File par note, fenêtre qui s'élargit avec l'attente&nbsp;; assigne les 2 joueurs à une instance.</td></tr>
-        <tr><td class="k">Persistance</td><td>Postgres / Supabase&nbsp;: <span class="n">users, ratings, matches, match_orders, seasons, cosmetics, ownership, battlepass</span>.</td></tr>
-        <tr><td class="k">Auth</td><td>Supabase Auth (e-mail + OAuth).</td></tr>
+        <tr><td class="k">Persistance</td><td>PocketBase (SQLite + Auth, auto-hébergé)&nbsp;: <span class="n">users, ratings, matches, match_orders, seasons, cosmetics, ownership, battlepass</span>.</td></tr>
+        <tr><td class="k">Auth</td><td>Auth PocketBase (e-mail + OAuth configurable).</td></tr>
         <tr><td class="k">Déploiement</td><td>Coolify sur le VPS. 1 conteneur serveur au début, scale horizontal via le matchmaker ensuite.</td></tr>
         <tr><td class="k">Anti-triche</td><td>Serveur autoritatif + validation «&nbsp;ordres légaux uniquement&nbsp;» + rate limit + détection d'anomalies de winrate. Chaque match rejouable pour audit.</td></tr>
       </table>
@@ -749,7 +749,7 @@
         <span class="dur">~1 sem.</span>
       </li>
       <li>
-        <div><b>Comptes &amp; matchmaking</b><p>Supabase Auth, file non classée, profils.</p></div>
+        <div><b>Comptes &amp; matchmaking</b><p>Auth PocketBase, file non classée, profils.</p></div>
         <span class="dur">1&ndash;2 sem.</span>
       </li>
       <li>

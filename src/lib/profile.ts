@@ -1,10 +1,10 @@
 /**
- * Profil joueur local (docs/PHASES.md P4/P5, version sans Supabase).
+ * Profil joueur local (docs/PHASES.md P4/P5, version sans PocketBase).
  *
  * Une seule identité stockée dans le navigateur (`localStorage`) : pseudo, XP de
  * compte, historique des matchs, et une note cachée Glicko-2 qui ne bouge que sur
  * les parties « classables » (pour l'instant : contre le bot, qui sert d'ancre de
- * niveau fixe). Aucune dépendance réseau. Le jour où l'on branche Supabase, ce
+ * niveau fixe). Aucune dépendance réseau. Le jour où l'on branche PocketBase, ce
  * module devient le cache local d'un profil serveur.
  */
 

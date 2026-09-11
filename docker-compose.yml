@@ -1,10 +1,20 @@
-# Topo locale Phase 3 : le build web + le serveur de match autoritatif.
-# Pas de comptes, pas de base — c'est la Phase 4.
+# Topo locale : le build web, le serveur de match autoritatif et PocketBase
+# (comptes/notation/matchs — Phase 4/5/7, cf. pocketbase/README.md).
 #   docker compose up --build
-#   web    -> http://localhost:4173  (ajouter ?server=ws://localhost:8787 si besoin)
-#   match  -> ws://localhost:8787   (santé : http://localhost:8787/healthz)
+#   web        -> http://localhost:4173  (ajouter ?server=ws://localhost:8787 si besoin)
+#   match      -> ws://localhost:8787   (santé : http://localhost:8787/healthz)
+#   pocketbase -> http://localhost:8090 (dashboard admin sur /_/)
 
 services:
+  pocketbase:
+    build:
+      context: ./pocketbase
+    ports:
+      - "8090:8090"
+    volumes:
+      - pb_data:/pb_data
+    restart: unless-stopped
+
   match:
     build:
       context: .
@@ -13,6 +23,10 @@ services:
       - "8787:8787"
     environment:
       - PORT=8787
+      - POCKETBASE_URL=http://pocketbase:8090
+      - MATCH_SETTLE_SECRET=${MATCH_SETTLE_SECRET:-}
+    depends_on:
+      - pocketbase
     restart: unless-stopped
 
   web:
@@ -23,3 +37,6 @@ services:
       - "4173:4173"
     depends_on:
       - match
+
+volumes:
+  pb_data:

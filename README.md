@@ -12,18 +12,21 @@ une physique de knockback. Ladder à saisons prévu. Inspiré de _BUMP! Superbra
 
 ## État
 
-- **Phases 1-2** ✅ — jeu complet en local : mode Contrôle, 6 héros + capacités +
-  Momentum, 3 arènes (Carrefour / Fonderie / Flipper), bot 3 niveaux, hotseat.
+- **Phases 1-2** ✅ — jeu complet en local : mode Contrôle, **8 héros** +
+  capacités + Momentum, 3 arènes (Carrefour / Fonderie / Flipper), bot 3
+  niveaux (dans un Web Worker), hotseat.
 - **Phase 3** ✅ — serveur de match **autoritatif** (`npm run server`), 1v1 en
   ligne sans compte. Table de sinus figée, `hashState()` client/serveur, test
   d'intégration `npm run net-test`.
-- **Phase 6** — **replays** : tout match s'enregistre (log d'ordres), se
-  télécharge en JSON de quelques Ko, se rejoue à l'identique (lecteur avec
-  navigation par tour).
+- **Phase 6** ✅ — **ban/pick** (local et en ligne), **replays** (log d'ordres,
+  JSON de quelques Ko, lecture avec navigation par tour), **spectate** (suivre
+  un match en direct depuis le menu).
 - **Phases 4-5-7** 🟡 — `src/lib/glicko2.ts` (classé) complet et testé contre
-  l'exemple de référence de Glickman ; migrations Supabase + Edge Function
-  `settle-match` + `Dockerfile` / `docker-compose.yml` / `docs/DEPLOY.md` écrits
-  mais **pas branchés** (attendent Supabase + VPS).
+  l'exemple de référence de Glickman ; collections + hooks **PocketBase**
+  (`pocketbase/`, pas Supabase — auto-hébergé sur le VPS) + `Dockerfile` /
+  `docker-compose.yml` / `docs/DEPLOY.md` écrits et **testés en local**
+  (migrations appliquées, `settle-match`/`rollover-season` appelés pour de
+  vrai) mais **pas branchés** au serveur de match ni déployés en prod.
 
 Détail phase par phase : `docs/PHASES.md`.
 
@@ -49,7 +52,7 @@ npm run dev        # http://localhost:5173
 ### Autres commandes
 
 ```bash
-npm test           # Vitest : moteur, Glicko-2, déterminisme (14 tests)
+npm test           # Vitest : moteur, Glicko-2, déterminisme (27 tests)
 npm run check      # smoke test : déterminisme + stabilité + replay + bot
 npm run net-test   # intégration P3 : hash serveur == résolveur local
 npm run build      # typecheck + build de prod
@@ -80,7 +83,7 @@ src/
   main.ts  styles.css
 server/       server.ts — serveur de match autoritatif (Node + ws)
 scripts/      check.ts, net-test.ts, gen-trig-table.mjs
-supabase/     migrations SQL + function settle-match (non branché)
+pocketbase/   collections + hooks settle-match/rollover-season (non branché)
 docs/         ricochet-playbook.html, PHASES.md, DEPLOY.md
 ```
 
