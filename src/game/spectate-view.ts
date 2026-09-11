@@ -68,6 +68,7 @@ export class SpectateView {
     this.els.hold.textContent = "Passer le tour";
     this.els.abilityWrap.hidden = false;
     this.els.hud.hidden = true;
+    this.r.dispose();
   }
 
   private exit = (): void => this.onExit();

@@ -35,9 +35,14 @@ Regénérer la table de sinus figée (rare) : `node scripts/gen-trig-table.mjs`.
 
 ### Stack
 
-- **TypeScript strict** + **Vite** — pas de framework, rendu **Canvas 2D**.
+- **TypeScript strict** + **Vite** — pas de framework, rendu **PixiJS** (WebGL,
+  voir `docs/PHASES.md` P2 — remplace le Canvas 2D d'origine depuis le
+  2026-09-11, décision prise pour des animations dignes d'un JV : squash &
+  stretch, particules, glow, silhouettes par archétype).
 - **Vitest** pour les tests du moteur.
-- Aucune dépendance runtime. Audio synthétisé (WebAudio), aucun asset binaire.
+- Aucune dépendance runtime **hors rendu** (pixi.js est la seule exception,
+  décision du 2026-09-11). Audio synthétisé (WebAudio), aucun asset binaire
+  pour l'instant (des sprites/anims par héros sont prévus, cf. P2).
 - Serveur de match : **Node + ws** (voir `docs/PHASES.md` P3 — Bun visé à
   l'origine, indisponible sur la machine de dev, `ws` est portable). Cible des
   phases comptes/classé : **PocketBase** (SQLite + Auth + hooks JS, un seul

@@ -189,6 +189,7 @@ export class Match {
     this.els.abActive.removeEventListener("click", this.onAbilityClick);
     this.els.hold.removeEventListener("click", this.onHoldClick);
     this.els.hud.hidden = true;
+    this.r.dispose();
   }
 
   private bind(): void {

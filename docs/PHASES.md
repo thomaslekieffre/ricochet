@@ -82,9 +82,46 @@ tourne maintenant dans `src/game/bot.worker.ts`, appelé via `BotClient`
 principal (le niveau Coriace, le plus lourd, ne gèle plus le rendu). Vite le
 bundle en chunk séparé (`dist/assets/bot.worker-*.js`).
 
-**Reste à faire dans P2 (polish, pas bloquant)** : passer le rendu sur PixiJS
-si le Canvas 2D montre ses limites ; équilibrage réel des 8 héros par des
-parties.
+**Rendu passé sur PixiJS (fait 2026-09-11)** — décidé après une discussion sur
+Rust+React : pas de réécriture du moteur (déterminisme déjà résolu et testé)
+ni de l'UI (React prématuré), mais le rendu Canvas 2D ne pouvait pas porter
+de vraies animations. `src/game/renderer.ts` réécrit intégralement sur
+`pixi.js@7.4.3` (API `Graphics` classique, `Application({view: canvas})` pour
+réutiliser `#stage` sans async) — seule dépendance runtime du projet,
+documentée dans `CLAUDE.md`. Signature publique inchangée (`Renderer`,
+`draw()`, `toWorld()`, `VIEW_W`/`VIEW_H`) donc `match.ts`/`replay-player.ts`/
+`spectate-view.ts` n'ont besoin que d'un `this.r.dispose()` en plus dans leur
+`dispose()` (contexte WebGL à libérer, contrairement au Canvas 2D).
+
+Ce que ça change concrètement, sans toucher au solveur :
+- **silhouettes par archétype** (octogone brawler, losange dasher, hexagone
+  sniper, étoile mage) au lieu d'un disque + lettre uniforme — le glyphe reste
+  affiché par-dessus pour la lisibilité ;
+- **squash & stretch** réel sur choc (détecté en comparant la vitesse d'un
+  héros d'une frame à l'autre — un corps qui décélère brutalement a été
+  touché), pas juste un flash ;
+- **particules de débris** au choc et au KO ;
+- **traînées** sur les héros dashers en pleine charge (en plus des traînées de
+  projectile déjà existantes) ;
+- ombres portées, glow des capacités/du Momentum, screen shake via la position
+  du root container plutôt que `ctx.translate`.
+
+Testé en vrai dans le navigateur (`npm run dev`, match bot vs bot joué à la
+main) : formes, glow, bascule de contrôle de zone, knockback tous corrects,
+zéro erreur console. `npx tsc --noEmit`, `npm test`, `npm run check`, `npm run
+build` tous verts après le changement.
+
+**Coût mesuré** : bundle JS principal 573 KB (181 KB gzip), contre largement
+moins avant PixiJS — pas encore code-splitté (`vite build` avertit sur la
+taille du chunk). À réduire plus tard si besoin (dynamic import, manualChunks)
+mais pas bloquant pour le dev local.
+
+**Reste à faire dans P2 (polish, pas bloquant)** : sprites/anims réels par
+héros (actuellement des formes géométriques stylisées — cf. DA
+« table de trajectoires » ; génération IA prévue mais bloquée par le plan du
+compte connecté, `generate_image` refusé avec « Requires basic plan or
+higher » le 2026-09-11) ; équilibrage réel des 8 héros par des parties ;
+code-splitting du bundle si sa taille devient gênante.
 
 ---
 
