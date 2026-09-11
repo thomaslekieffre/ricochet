@@ -14,19 +14,32 @@ une physique de knockback. Ladder à saisons prévu. Inspiré de _BUMP! Superbra
 
 - **Phases 1-2** ✅ — jeu complet en local : mode Contrôle, **8 héros** +
   capacités + Momentum, 3 arènes (Carrefour / Fonderie / Flipper), bot 3
-  niveaux (dans un Web Worker), hotseat.
+  niveaux (dans un Web Worker), hotseat. Rendu passé sur **PixiJS** (WebGL)
+  le 2026-09-11 : silhouettes par archétype, squash & stretch au choc,
+  particules, traînées, glow — les vrais sprites/anims par héros restent à
+  faire (génération IA prévue, bloquée pour l'instant par le plan du compte
+  connecté).
 - **Phase 3** ✅ — serveur de match **autoritatif** (`npm run server`), 1v1 en
   ligne sans compte. Table de sinus figée, `hashState()` client/serveur, test
   d'intégration `npm run net-test`.
+- **Phase 4** ✅ — comptes **PocketBase** branchés pour de vrai : écran
+  connexion/inscription/déconnexion (`accountScreen`), JWT transmis au
+  serveur de match, `settle-match` appelé à chaque match en ligne, profil
+  local synchronisé. Testé en vrai (compte créé, match complet joué, XP de
+  compte vérifié en base).
+- **Phase 5** 🟡 — `src/lib/glicko2.ts` (classé) complet et testé contre
+  l'exemple de référence de Glickman. **Matchmaking par note fait et testé**
+  (fenêtre `±(60+12s)` qui s'élargit avec l'attente ; jouer sans compte reste
+  toujours immédiat) — reste à vérifier la mise à jour Glicko-2 en vrai une
+  fois une saison active seedée (P7).
 - **Phase 6** ✅ — **ban/pick** (local et en ligne), **replays** (log d'ordres,
   JSON de quelques Ko, lecture avec navigation par tour), **spectate** (suivre
   un match en direct depuis le menu).
-- **Phases 4-5-7** 🟡 — `src/lib/glicko2.ts` (classé) complet et testé contre
-  l'exemple de référence de Glickman ; collections + hooks **PocketBase**
-  (`pocketbase/`, pas Supabase — auto-hébergé sur le VPS) + `Dockerfile` /
-  `docker-compose.yml` / `docs/DEPLOY.md` écrits et **testés en local**
-  (migrations appliquées, `settle-match`/`rollover-season` appelés pour de
-  vrai) mais **pas branchés** au serveur de match ni déployés en prod.
+- **Phase 7** 🟡 — collections + hooks **PocketBase** (`pocketbase/`, pas
+  Supabase — auto-hébergé sur le VPS) + `Dockerfile` / `docker-compose.yml` /
+  `docs/DEPLOY.md` écrits et **testés en local** (migrations appliquées,
+  `settle-match`/`rollover-season` appelés pour de vrai) mais **pas déployés**
+  en prod ; aucune saison seedée.
 
 Détail phase par phase : `docs/PHASES.md`.
 
@@ -36,6 +49,10 @@ Détail phase par phase : `docs/PHASES.md`.
 npm run server   # terminal 1 — :8787
 npm run dev      # terminal 2 — ouvrir deux onglets, menu → « En ligne »
 ```
+
+Pour tester les comptes/le classé, il faut en plus une instance **PocketBase**
+locale (`pocketbase/README.md`) et `POCKETBASE_URL=http://127.0.0.1:8090` dans
+l'environnement du serveur de match (voir `.env.example`).
 
 ---
 
@@ -77,24 +94,31 @@ npm run build      # typecheck + build de prod
 src/
   engine/     moteur déterministe (aucun DOM) : fixed, trig-table figée, solver,
               hash, heroes, arenas, bot, index, *.test.ts
-  net/        protocol.ts + client.ts (WebSocket navigateur)
+  net/        protocol.ts, client.ts (WebSocket navigateur), session.ts (auth PocketBase)
   lib/        glicko2.ts (+ test) — notation classée
-  game/       audio, renderer, ui, match, replay, replay-player, app
+  game/       audio, renderer (PixiJS), ui, match, bot-client/bot.worker,
+              replay, replay-player, spectate-view, app
   main.ts  styles.css
-server/       server.ts — serveur de match autoritatif (Node + ws)
+server/       server.ts — serveur de match autoritatif (Node + ws) + matchmaking
 scripts/      check.ts, net-test.ts, gen-trig-table.mjs
-pocketbase/   collections + hooks settle-match/rollover-season (non branché)
+pocketbase/   collections + hooks settle-match/rollover-season (branché au
+              serveur de match, pas encore déployé en prod)
 docs/         ricochet-playbook.html, PHASES.md, DEPLOY.md
 ```
 
 ## Notes techniques
 
 - **Déterminisme** : `solver.ts` n'utilise aucun flottant, aucun `Math.random`,
-  aucun `Date`. Les collisions sont visitées dans l'ordre des identifiants. C'est
-  ce qui rendra le serveur autoritatif (Phase 3) et les replays triviaux.
-- **À geler avant la Phase 3** : la table de sinus de `trig.ts` est construite
-  depuis `Math.sin` au chargement — à figer en constante versionnée pour un
-  déterminisme inter-machines. Suffisant en local.
-- **Rendu vs simulation** : `resolve()` renvoie des images-clés ; le `Renderer`
-  ne fait que les rejouer, il ne calcule aucune physique.
+  aucun `Date`. Les collisions sont visitées dans l'ordre des identifiants —
+  c'est ce qui rend le serveur autoritatif (Phase 3) et les replays triviaux.
+  La table de sinus (`trig-table.ts`) est figée en constante versionnée,
+  revalidée par un test.
+- **Rendu vs simulation** : `resolve()` renvoie des images-clés ; le
+  `Renderer` (PixiJS) ne fait que les rejouer, il ne calcule aucune physique.
+  Seule dépendance runtime du projet (`pixi.js`), exception documentée dans
+  `CLAUDE.md`.
 - **Équilibrage** : tout est dans `src/engine/tuning.ts` et `heroes.ts`.
+- **Comptes/classé** : `src/net/session.ts` (auth PocketBase côté navigateur,
+  `fetch` brut), `server/server.ts` vérifie le JWT et appelle
+  `POST /api/settle-match` en fin de match, matchmaking par fenêtre de note
+  (`±(60+12s)`) — détail complet dans `docs/PHASES.md` P4/P5.
