@@ -116,12 +116,38 @@ moins avant PixiJS — pas encore code-splitté (`vite build` avertit sur la
 taille du chunk). À réduire plus tard si besoin (dynamic import, manualChunks)
 mais pas bloquant pour le dev local.
 
-**Reste à faire dans P2 (polish, pas bloquant)** : sprites/anims réels par
-héros (actuellement des formes géométriques stylisées — cf. DA
-« table de trajectoires » ; génération IA prévue mais bloquée par le plan du
-compte connecté, `generate_image` refusé avec « Requires basic plan or
-higher » le 2026-09-11) ; équilibrage réel des 8 héros par des parties ;
-code-splitting du bundle si sa taille devient gênante.
+**Sprites par héros (fait 2026-09-11)** — `src/assets/heroes/*.png` (8
+fichiers, ~850 Ko au total, premiers assets binaires du projet). Le MCP
+claude.ai (Higgsfield, `generate_image`) reste bloqué par le plan du compte
+(« Requires basic plan or higher ») ; généré à la place via **FLUX.1 [schnell]
+sur un Space Hugging Face** (gratuit, compte HF gratuit requis pour dépasser
+le quota invité de 2 générations), un par un dans Chrome, téléchargés puis
+détourés en local (`scripts/process-hero-sprites.mjs`, `sharp` en
+devDependency) : flood fill depuis les bords de l'image plutôt qu'une clé
+chroma globale, pour ne pas créer de trous dans les zones blanches internes
+(visages, surbrillances) des héros au trait fin (Sling, Arc). Un premier essai
+avec **Pollinations.ai** (encore plus libre d'accès, aucune inscription) a été
+abandonné : style et cadrage pas assez fiables d'une génération à l'autre
+(vignettage, piédestal de figurine, fond non uniforme malgré des prompts
+répétés) pour un pipeline de 8 sprites cohérents.
+
+Intégration dans `renderer.ts` : chaque héros garde ses couleurs propres (un
+rendu sombre ne se teinte pas de façon lisible par `sprite.tint`) ; le camp
+(vert/rose) se lit maintenant sur un **socle aplati** sous les pieds (silhouette
+d'archétype existante — octogone/losange/hexagone/étoile — réutilisée en
+plaque plutôt qu'en remplissage plein) + le halo déjà existant. Le glyphe
+central (lettre) est réduit et déplacé en badge coin bas-droite, redondant
+avec l'art mais gardé pour une identification rapide. Testé en vrai
+(`npm run dev`, bot vs bot, les deux camps) : sprites visibles, socles de camp
+lisibles, zéro erreur console. `npx tsc --noEmit`, `npm test`, `npm run check`,
+`npm run build` tous verts.
+
+**Reste dans P2 (polish, pas bloquant)** : animations (les sprites sont des
+poses statiques, le squash/stretch/glow procédural s'applique par-dessus) ;
+équilibrage réel des 8 héros par des parties ; code-splitting du bundle si sa
+taille devient gênante ; qualité visuelle inégale entre héros (Boulder/Ram en
+rendu « figurine » plein, Sling/Arc en trait fin plus sobre) — pas retouché,
+pas bloquant pour la lisibilité en jeu.
 
 ---
 

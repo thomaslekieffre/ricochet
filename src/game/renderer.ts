@@ -2,6 +2,27 @@ import * as PIXI from "pixi.js";
 import { fx, HEROES, trig, tuning } from "../engine/index";
 import type { Arena, Archetype, Frame, GameState, HeroKind, Wall } from "../engine/index";
 
+import arcUrl from "../assets/heroes/arc.png";
+import boulderUrl from "../assets/heroes/boulder.png";
+import cometUrl from "../assets/heroes/comet.png";
+import hookUrl from "../assets/heroes/hook.png";
+import prismUrl from "../assets/heroes/prism.png";
+import ramUrl from "../assets/heroes/ram.png";
+import slingUrl from "../assets/heroes/sling.png";
+import vexUrl from "../assets/heroes/vex.png";
+
+/** Sprites générés (fond transparent) par héros — cf. docs/PHASES.md P2. */
+const SPRITE_URL: Record<HeroKind, string> = {
+  boulder: boulderUrl,
+  ram: ramUrl,
+  comet: cometUrl,
+  hook: hookUrl,
+  sling: slingUrl,
+  prism: prismUrl,
+  vex: vexUrl,
+  arc: arcUrl,
+};
+
 const WORLD_W = 1600;
 export const VIEW_W = 960;
 export const VIEW_H = 600;
@@ -152,7 +173,8 @@ interface BodyVisual {
   container: PIXI.Container;
   shadow: PIXI.Graphics;
   glowG: PIXI.Graphics;
-  shape: PIXI.Graphics;
+  base: PIXI.Graphics;
+  sprite: PIXI.Sprite;
   ring: PIXI.Graphics;
   label: PIXI.Text;
   trail: PIXI.Graphics;
@@ -200,7 +222,18 @@ export class Renderer {
   private bodies = new Map<number, BodyVisual>();
   private particles: Particle[] = [];
   private castTexts = new Map<CastFx, PIXI.Text>();
+  private heroTextures = new Map<HeroKind, PIXI.Texture>();
   private onResize = (): void => this.resize();
+
+  /** Texture d'un héros, chargée et mise en cache à la demande. */
+  private heroTexture(hero: HeroKind): PIXI.Texture {
+    let tex = this.heroTextures.get(hero);
+    if (!tex) {
+      tex = PIXI.Texture.from(SPRITE_URL[hero]);
+      this.heroTextures.set(hero, tex);
+    }
+    return tex;
+  }
 
   constructor(private canvas: HTMLCanvasElement) {
     this.app = new PIXI.Application({
@@ -464,7 +497,9 @@ export class Renderer {
     const container = new PIXI.Container();
     const shadow = new PIXI.Graphics();
     const glowG = new PIXI.Graphics();
-    const shape = new PIXI.Graphics();
+    const base = new PIXI.Graphics(); // socle coloré par camp, sous le sprite
+    const sprite = new PIXI.Sprite();
+    sprite.anchor.set(0.5, 0.5);
     const ring = new PIXI.Graphics();
     const trail = new PIXI.Graphics();
     const label = new PIXI.Text("", {
@@ -475,13 +510,14 @@ export class Renderer {
       align: "center",
     });
     label.anchor.set(0.5, 0.5);
-    container.addChild(shadow, glowG, shape, ring, label);
+    container.addChild(shadow, glowG, base, sprite, ring, label);
     this.bodiesLayer.addChild(trail, container);
     return {
       container,
       shadow,
       glowG,
-      shape,
+      base,
+      sprite,
       ring,
       label,
       trail,
@@ -593,11 +629,26 @@ export class Renderer {
 
     if (bv.hero !== hero) {
       bv.hero = hero;
+      const tex = this.heroTexture(hero);
+      bv.sprite.texture = tex;
+      // le sprite garde ses couleurs propres (pas de tint par camp — un rendu
+      // sombre/clair selon le héros ne se teinterait pas de façon lisible) ;
+      // le camp se lit au socle + au glow sous les pieds, cf. bv.base.
+      const applySpriteSize = (): void => {
+        const aspect = tex.height > 0 && tex.width > 0 ? tex.height / tex.width : 1;
+        const w = r * 2.3;
+        bv!.sprite.width = w;
+        bv!.sprite.height = w * aspect;
+        bv!.sprite.y = -r * 0.15; // recentre visuellement (les sprites ont du vide en pied)
+      };
+      if (tex.valid) applySpriteSize();
+      else tex.baseTexture.once("loaded", applySpriteSize);
       bv.label.text = GLYPH[hero];
-      bv.label.style.fontSize = Math.round(r * 0.95);
-      bv.label.style.fill = owner === 0 ? 0x0a1f3d : 0xffffff;
+      bv.label.style.fontSize = Math.round(r * 0.42);
+      bv.label.style.fill = 0xffffff;
+      bv.label.position.set(r * 0.68, r * 0.68);
     }
-    bv.label.alpha = 0.92;
+    bv.label.alpha = 0.55;
 
     bv.shadow.clear();
     bv.shadow.beginFill(0x03070f, 0.35);
@@ -607,11 +658,16 @@ export class Renderer {
     bv.glowG.clear();
     glow(bv.glowG, 0, 0, r, c, charging ? 0.55 : 0.28);
 
-    bv.shape.clear();
-    bv.shape.lineStyle(2, 0xffffff, 0.35);
-    bv.shape.beginFill(c, 1);
-    bv.shape.drawPolygon(archPoints(archetype, r));
-    bv.shape.endFill();
+    // socle : silhouette d'archétype aplatie sous les pieds, couleur de camp —
+    // c'est elle qui porte l'identité vert/rose maintenant que le sprite garde
+    // ses propres couleurs.
+    bv.base.clear();
+    bv.base.position.set(0, r * 0.68);
+    bv.base.scale.set(1, 0.4);
+    bv.base.lineStyle(2, 0xffffff, 0.4);
+    bv.base.beginFill(c, 0.95);
+    bv.base.drawPolygon(archPoints(archetype, r * 0.9));
+    bv.base.endFill();
 
     bv.ring.clear();
     if (charging) {
