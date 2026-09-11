@@ -16,6 +16,7 @@ import {
   PROTOCOL_VERSION,
   encode,
   type ClientMsg,
+  type LiveMatchInfo,
   type QueueSetup,
   type ServerMsg,
 } from "../src/net/protocol";
@@ -29,12 +30,16 @@ const HOLD: Order = { bodyId: -1, angleIdx: 0, power: 0, ability: false, hold: t
 
 let nextId = 1;
 
+/** Matchs en cours, pour le spectate (docs/PHASES.md P6) : `matchId -> Match`. */
+const liveMatches = new Map<string, Match>();
+
 interface Client {
   id: number;
   ws: WebSocket;
   setup: QueueSetup | null;
   draft: Draft | null;
   match: Match | null;
+  spectating: Match | null;
   seat: 0 | 1;
   alive: boolean;
 }
@@ -163,6 +168,7 @@ class Match {
   state: GameState;
   private pending: [Order | null, Order | null] = [null, null];
   private ready = new Set<0 | 1>();
+  private observers = new Set<Client>();
   private timer: NodeJS.Timeout | null = null;
   private closed = false;
 
@@ -181,7 +187,24 @@ class Match {
       teamB: teamB as [HeroKind, HeroKind, HeroKind],
       arena: arenaId,
     });
+    liveMatches.set(this.id, this);
     this.beginTurn(true);
+  }
+
+  get arenaId(): string {
+    return this.state.arena.id;
+  }
+
+  addObserver(c: Client): void {
+    if (this.closed) return;
+    this.observers.add(c);
+    c.spectating = this;
+    send(c, { t: "spectating", matchId: this.id, state: this.state });
+  }
+
+  removeObserver(c: Client): void {
+    this.observers.delete(c);
+    if (c.spectating === this) c.spectating = null;
   }
 
   private beginTurn(first = false): void {
@@ -233,7 +256,7 @@ class Match {
     this.state = res.state;
     const deadlineMs = Date.now() + ANIM_GRACE_MS + TURN_DEADLINE_MS;
     const hash = hashState(this.state);
-    for (const c of this.seats) {
+    for (const c of [...this.seats, ...this.observers]) {
       send(c, {
         t: "turn",
         turn: this.state.turn - 1,
@@ -248,6 +271,9 @@ class Match {
     if (this.state.over && this.state.winner !== null) {
       for (const c of this.seats) {
         send(c, { t: "over", matchId: this.id, winner: this.state.winner });
+      }
+      for (const c of this.observers) {
+        send(c, { t: "spectateEnded", matchId: this.id, winner: this.state.winner });
       }
       this.close();
       return;
@@ -268,6 +294,9 @@ class Match {
     send(other, { t: "opponentLeft", matchId: this.id });
     if (!this.state.over) {
       send(other, { t: "over", matchId: this.id, winner: other.seat });
+      for (const o of this.observers) {
+        send(o, { t: "spectateEnded", matchId: this.id, winner: other.seat });
+      }
     }
     this.close();
   }
@@ -285,7 +314,10 @@ class Match {
   private close(): void {
     this.closed = true;
     if (this.timer) clearTimeout(this.timer);
+    liveMatches.delete(this.id);
     for (const c of this.seats) c.match = null;
+    for (const c of this.observers) c.spectating = null;
+    this.observers.clear();
   }
 }
 
@@ -295,7 +327,7 @@ export function createMatchServer(port = DEFAULT_PORT): { http: Server; close: (
   const http = createServer((req, res) => {
     if (req.url === "/healthz") {
       res.writeHead(200, { "content-type": "application/json" });
-      res.end(JSON.stringify({ ok: true, waiting: waiting.length, matches: nextId - 1 }));
+      res.end(JSON.stringify({ ok: true, waiting: waiting.length, matches: liveMatches.size }));
       return;
     }
     res.writeHead(426);
@@ -335,6 +367,7 @@ export function createMatchServer(port = DEFAULT_PORT): { http: Server; close: (
       setup: null,
       draft: null,
       match: null,
+      spectating: null,
       seat: 0,
       alive: true,
     };
@@ -378,6 +411,20 @@ export function createMatchServer(port = DEFAULT_PORT): { http: Server; close: (
         case "resync":
           client.match?.resync(client);
           break;
+        case "listMatches": {
+          const matches: LiveMatchInfo[] = [...liveMatches.values()].map((m) => ({
+            matchId: m.id,
+            arenaId: m.arenaId,
+            turn: m.state.turn,
+          }));
+          send(client, { t: "matchList", matches });
+          break;
+        }
+        case "spectate": {
+          const m = liveMatches.get(msg.matchId);
+          if (m) m.addObserver(client);
+          break;
+        }
         case "ping":
           send(client, { t: "pong", n: msg.n });
           break;
@@ -390,6 +437,7 @@ export function createMatchServer(port = DEFAULT_PORT): { http: Server; close: (
       if (i >= 0) waiting.splice(i, 1);
       client.draft?.onLeave(client);
       client.match?.onLeave(client);
+      client.spectating?.removeObserver(client);
     });
   });
 

@@ -57,6 +57,7 @@ export function menuScreen(
   onReplay: () => void,
   onProfile: () => void,
   onCodex: () => void,
+  onSpectate: () => void,
 ): void {
   const el = show(`
     <div class="screen menu">
@@ -109,6 +110,7 @@ export function menuScreen(
       <div class="menu-foot">
         <button class="linkbtn" id="codex">Voir les héros</button>
         <button class="linkbtn" id="replay">Revoir un replay</button>
+        <button class="linkbtn" id="spectate">Regarder un match en direct</button>
       </div>
     </div>
   `);
@@ -120,6 +122,10 @@ export function menuScreen(
   el.querySelector("#codex")!.addEventListener("click", () => {
     hideOverlay();
     onCodex();
+  });
+  el.querySelector("#spectate")!.addEventListener("click", () => {
+    hideOverlay();
+    onSpectate();
   });
   el.querySelector("#pchip")?.addEventListener("click", () => {
     hideOverlay();
@@ -635,6 +641,44 @@ export function searchingScreen(onCancel: () => void): void {
       <button class="cta ghost" id="cancel">Annuler</button>
     </div>
   `);
+  el.querySelector("#cancel")!.addEventListener("click", () => {
+    hideOverlay();
+    onCancel();
+  });
+}
+
+export interface SpectateRow {
+  matchId: string;
+  label: string;
+}
+
+/** Liste des matchs en direct (docs/PHASES.md P6). Rafraîchissable, lecture seule. */
+export function spectateListScreen(
+  rows: SpectateRow[],
+  onWatch: (matchId: string) => void,
+  onRefresh: () => void,
+  onCancel: () => void,
+): void {
+  const el = show(`
+    <div class="screen">
+      <h2>Matchs en direct</h2>
+      <p class="sub">${rows.length === 0 ? "Aucun match en cours pour l'instant." : "Choisis un match à suivre."}</p>
+      <div class="pool">${rows
+        .map((r) => `<button class="pcard" data-id="${esc(r.matchId)}">${esc(r.label)}</button>`)
+        .join("")}</div>
+      <div class="menu-foot">
+        <button class="linkbtn" id="refresh">Rafraîchir</button>
+        <button class="cta ghost" id="cancel">Retour</button>
+      </div>
+    </div>
+  `);
+  el.querySelectorAll<HTMLElement>(".pcard").forEach((c) => {
+    c.addEventListener("click", () => {
+      hideOverlay();
+      onWatch(c.dataset.id!);
+    });
+  });
+  el.querySelector("#refresh")!.addEventListener("click", onRefresh);
   el.querySelector("#cancel")!.addEventListener("click", () => {
     hideOverlay();
     onCancel();

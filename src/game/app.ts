@@ -17,6 +17,7 @@ import { Match } from "./match";
 import type { MatchOpts } from "./match";
 import { ReplayPlayer } from "./replay-player";
 import { downloadRecording, makeRecording, parseRecording } from "./replay";
+import { SpectateView } from "./spectate-view";
 import {
   banPickScreen,
   codexScreen,
@@ -28,8 +29,9 @@ import {
   profileScreen,
   resultScreen,
   searchingScreen,
+  spectateListScreen,
 } from "./ui";
-import type { HistoryRow, StartOpts } from "./ui";
+import type { HistoryRow, SpectateRow, StartOpts } from "./ui";
 
 const ARENA_LABEL: Record<string, string> = {
   carrefour: "Carrefour",
@@ -55,6 +57,7 @@ function scorelineHtml(hold: [number, number] | number[]): string {
 export class App {
   private match: Match | null = null;
   private replay: ReplayPlayer | null = null;
+  private spectate: SpectateView | null = null;
   private net: NetClient | null = null;
   private last: { opts: StartOpts; teamA: HeroKind[]; teamB: HeroKind[] } | null = null;
   private profile: Profile | null = null;
@@ -80,6 +83,7 @@ export class App {
       () => this.pickReplayFile(),
       () => this.showProfile(),
       () => codexScreen(() => this.toMenu()),
+      () => this.startSpectate(),
     );
   }
 
@@ -392,6 +396,63 @@ export class App {
     input.click();
   }
 
+  // ---- spectate -----------------------------------------------------
+
+  private startSpectate(): void {
+    this.teardown();
+    const client = new NetClient();
+    this.net = client;
+    client
+      .connect()
+      .then(() => this.refreshSpectateList(client))
+      .catch(() => {
+        this.teardown();
+        noticeScreen(
+          "Serveur injoignable",
+          "Lance <code>npm run server</code> puis réessaie.",
+          () => this.toMenu(),
+        );
+      });
+  }
+
+  private refreshSpectateList(client: NetClient): void {
+    const off = client.on((m: ServerMsg) => {
+      if (m.t !== "matchList") return;
+      off();
+      const rows: SpectateRow[] = m.matches.map((mi) => ({
+        matchId: mi.matchId,
+        label: `${arenaLabel(mi.arenaId)} · tour ${mi.turn}`,
+      }));
+      spectateListScreen(
+        rows,
+        (matchId) => this.watchMatch(client, matchId),
+        () => this.refreshSpectateList(client),
+        () => {
+          this.teardown();
+          this.toMenu();
+        },
+      );
+    });
+    client.send({ t: "listMatches" });
+  }
+
+  private watchMatch(client: NetClient, matchId: string): void {
+    const off = client.on((m: ServerMsg) => {
+      if (m.t === "spectating" && m.matchId === matchId) {
+        off();
+        this.spectate = new SpectateView(this.canvas, client, m.state, () => {
+          this.teardown();
+          this.toMenu();
+        });
+      } else if (m.t === "error") {
+        off();
+        this.teardown();
+        noticeScreen("Connexion perdue", "Le serveur ne répond plus.", () => this.toMenu());
+      }
+    });
+    client.send({ t: "spectate", matchId });
+  }
+
   // ---- teardown -------------------------------------------------
 
   private teardown(): void {
@@ -399,6 +460,8 @@ export class App {
     this.match = null;
     this.replay?.dispose();
     this.replay = null;
+    this.spectate?.dispose();
+    this.spectate = null;
     this.net?.close();
     this.net = null;
   }

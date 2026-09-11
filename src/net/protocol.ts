@@ -21,6 +21,12 @@ export interface QueueSetup {
   arenaId: string;
 }
 
+export interface LiveMatchInfo {
+  matchId: string;
+  arenaId: string;
+  turn: number;
+}
+
 /* ---- client -> server ---- */
 export type ClientMsg =
   | { t: "hello"; v: number }
@@ -31,6 +37,8 @@ export type ClientMsg =
   | { t: "order"; matchId: string; turn: number; order: Order }
   | { t: "ready"; matchId: string; turn: number }
   | { t: "resync"; matchId: string }
+  | { t: "listMatches" }
+  | { t: "spectate"; matchId: string }
   | { t: "ping"; n: number };
 
 /* ---- server -> client ---- */
@@ -59,6 +67,9 @@ export type ServerMsg =
   | { t: "state"; matchId: string; state: GameState; turn: number; deadlineMs: number }
   | { t: "opponentLeft"; matchId: string }
   | { t: "over"; matchId: string; winner: 0 | 1 }
+  | { t: "matchList"; matches: LiveMatchInfo[] }
+  | { t: "spectating"; matchId: string; state: GameState }
+  | { t: "spectateEnded"; matchId: string; winner: 0 | 1 | null }
   | { t: "error"; msg: string }
   | { t: "pong"; n: number };
 

@@ -34,7 +34,7 @@ export class ReplayPlayer {
     turn: document.getElementById("turnlabel")!,
     prompt: document.getElementById("prompt")!,
     timer: document.getElementById("timer")!,
-    abilityWrap: document.getElementById("abilityWrap")!,
+    abilityWrap: document.getElementById("actionbar")!,
     hold: document.getElementById("btnHold") as HTMLButtonElement,
   };
 

@@ -11,7 +11,7 @@ que quand la précédente est verte.
 | 3 | Serveur autoritatif — 1v1 en ligne, sans compte | ✅ Fait |
 | 4 | Comptes + matchmaking + file non classée | 🟡 Partiel — **profil local fait** (`src/lib/profile.ts`) ; schéma + Edge Function écrits, pas branchés |
 | 5 | Classé Glicko-2 + saisons | 🟡 Partiel — `glicko2.ts` fait + testé, **note cachée locale vs bot faite**, migrations écrites |
-| 6 | Draft ban/pick + roster complet + replays + spectate | 🟡 Partiel — **replays + ban/pick local et en ligne + roster à 8 faits** ; reste le spectate |
+| 6 | Draft ban/pick + roster complet + replays + spectate | ✅ Fait |
 | 7 | Pass de saison + cosmétiques + déploiement | 🟡 Partiel — migrations + `DEPLOY.md` + Docker |
 
 Légende : 🟡 = la partie qui ne touche pas Supabase/VPS est faite et testée ; le
@@ -355,7 +355,7 @@ create table season_ratings (
 
 ---
 
-## Phase 6 — Draft, roster complet, replays, spectate 🟡
+## Phase 6 — Draft, roster complet, replays, spectate ✅
 
 **Fait**
 
@@ -399,10 +399,26 @@ toucher) :
 Testé : 2 tests dédiés dans `solver.test.ts` (traction de Vex, éclat d'Arc),
 `scripts/check.ts` exerce désormais Vex + Arc dans son match bot vs bot.
 
-**Reste**
+**Spectate (fait 2026-09-11)** — le serveur tient un registre des matchs en
+cours (`liveMatches`, `server/server.ts`) ; un client peut demander
+`listMatches` (renvoie id/arène/tour de chaque match live) puis `spectate` un
+`matchId` — il rejoint `Match.observers`, reçoit l'état courant (`spectating`)
+puis chaque `turn` diffusé aux deux joueurs (lecture seule, jamais d'`Order`
+accepté d'un observateur). Côté client, `SpectateView`
+(`src/game/spectate-view.ts`) anime les tours au fil de l'eau — même moteur de
+lecture que `ReplayPlayer`, mais alimenté par le réseau plutôt qu'un log figé.
+Écran `spectateListScreen()` (`src/game/ui.ts`) pour choisir un match, accessible
+depuis le menu (« Regarder un match en direct »).
 
-- **Spectate** : le serveur diffuse les `turn` d'un match à des sockets observateurs.
-- Défis d'amis, lobbies privés (code de salle).
+**Bug corrigé au passage** : `ReplayPlayer` et `SpectateView` référençaient un
+id DOM `abilityWrap` qui n'existe plus depuis le passage à la barre d'action
+(`#actionbar`) en P2 — `document.getElementById` renvoyait `null`, crash au
+lancement d'un replay ou d'un spectate. Trouvé en testant le spectate en
+conditions réelles (2 joueurs + 1 spectateur, navigateur), corrigé dans les
+deux fichiers.
+
+**Reste (hors scope P6, idée future)** : défis d'amis, lobbies privés (code de
+salle).
 
 ---
 
