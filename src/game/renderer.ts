@@ -4,6 +4,8 @@ import type { Arena, Archetype, Frame, GameState, HeroKind, Wall } from "../engi
 
 import arcUrl from "../assets/heroes/arc.png";
 import boulderUrl from "../assets/heroes/boulder.png";
+import boulderHitUrl from "../assets/heroes/boulder_hit.png";
+import boulderKoUrl from "../assets/heroes/boulder_ko.png";
 import cometUrl from "../assets/heroes/comet.png";
 import hookUrl from "../assets/heroes/hook.png";
 import prismUrl from "../assets/heroes/prism.png";
@@ -11,16 +13,22 @@ import ramUrl from "../assets/heroes/ram.png";
 import slingUrl from "../assets/heroes/sling.png";
 import vexUrl from "../assets/heroes/vex.png";
 
-/** Sprites générés (fond transparent) par héros — cf. docs/PHASES.md P2. */
-const SPRITE_URL: Record<HeroKind, string> = {
-  boulder: boulderUrl,
-  ram: ramUrl,
-  comet: cometUrl,
-  hook: hookUrl,
-  sling: slingUrl,
-  prism: prismUrl,
-  vex: vexUrl,
-  arc: arcUrl,
+type SpriteVariant = "idle" | "hit" | "ko";
+
+/**
+ * Sprites générés (fond transparent) par héros — cf. docs/PHASES.md P2.
+ * `hit`/`ko` sont optionnels : déploiement héros par héros, fallback sur
+ * `idle` tant qu'une pose dédiée n'existe pas.
+ */
+const SPRITE_URL: Record<HeroKind, { idle: string; hit?: string; ko?: string }> = {
+  boulder: { idle: boulderUrl, hit: boulderHitUrl, ko: boulderKoUrl },
+  ram: { idle: ramUrl },
+  comet: { idle: cometUrl },
+  hook: { idle: hookUrl },
+  sling: { idle: slingUrl },
+  prism: { idle: prismUrl },
+  vex: { idle: vexUrl },
+  arc: { idle: arcUrl },
 };
 
 const WORLD_W = 1600;
@@ -186,6 +194,7 @@ interface BodyVisual {
   lastSpeed: number;
   poofUntil: number; // performance.now() deadline of a KO poof-out, 0 == none
   spawnAt: number; // performance.now() of last alive-false->true transition, for pop-in
+  hitUntil: number; // performance.now() deadline of the "hit" pose sprite, 0 == none
 }
 
 interface Particle {
@@ -234,17 +243,34 @@ export class Renderer {
   private particles: Particle[] = [];
   private impacts: ImpactMark[] = [];
   private castTexts = new Map<CastFx, PIXI.Text>();
-  private heroTextures = new Map<HeroKind, PIXI.Texture>();
+  private heroTextures = new Map<string, PIXI.Texture>();
   private onResize = (): void => this.resize();
 
-  /** Texture d'un héros, chargée et mise en cache à la demande. */
-  private heroTexture(hero: HeroKind): PIXI.Texture {
-    let tex = this.heroTextures.get(hero);
+  /** Texture d'un héros pour une pose donnée, chargée et mise en cache à la demande. */
+  private heroTexture(hero: HeroKind, variant: SpriteVariant = "idle"): PIXI.Texture {
+    const urls = SPRITE_URL[hero];
+    const url = (variant === "hit" ? urls.hit : variant === "ko" ? urls.ko : undefined) ?? urls.idle;
+    const key = `${hero}:${url}`;
+    let tex = this.heroTextures.get(key);
     if (!tex) {
-      tex = PIXI.Texture.from(SPRITE_URL[hero]);
-      this.heroTextures.set(hero, tex);
+      tex = PIXI.Texture.from(url);
+      this.heroTextures.set(key, tex);
     }
     return tex;
+  }
+
+  /** Applique une texture de héros au sprite, en redimensionnant selon son aspect ratio propre. */
+  private setBodySprite(bv: BodyVisual, tex: PIXI.Texture, r: number): void {
+    bv.sprite.texture = tex;
+    const applySpriteSize = (): void => {
+      const aspect = tex.height > 0 && tex.width > 0 ? tex.height / tex.width : 1;
+      const w = r * 2.3;
+      bv.sprite.width = w;
+      bv.sprite.height = w * aspect;
+      bv.sprite.y = -r * 0.15; // recentre visuellement (les sprites ont du vide en pied)
+    };
+    if (tex.valid) applySpriteSize();
+    else tex.baseTexture.once("loaded", applySpriteSize);
   }
 
   constructor(private canvas: HTMLCanvasElement) {
@@ -543,6 +569,7 @@ export class Renderer {
       lastSpeed: 0,
       poofUntil: 0,
       spawnAt: 0,
+      hitUntil: 0,
     };
   }
 
@@ -577,6 +604,7 @@ export class Renderer {
         this.burst(bv.lastX, bv.lastY, col(owner), 14);
         this.impacts.push({ x: bv.lastX, y: bv.lastY, r, color: col(owner), born: now, ko: true });
         bv.poofUntil = now + 260;
+        this.setBodySprite(bv, this.heroTexture(hero, "ko"), r);
       }
       bv.lastAlive = false;
       bv.trailPts = [];
@@ -588,7 +616,11 @@ export class Renderer {
       }
       return;
     }
-    if (!bv.lastAlive) bv.spawnAt = now; // ressuscite : pop-in
+    if (!bv.lastAlive) {
+      bv.spawnAt = now; // ressuscite : pop-in
+      bv.hitUntil = 0;
+      if (bv.hero === hero) this.setBodySprite(bv, this.heroTexture(hero), r);
+    }
     bv.lastAlive = true;
     bv.container.alpha = 1;
 
@@ -603,6 +635,8 @@ export class Renderer {
       this.burst(px, py, c, 8);
       this.impacts.push({ x: px, y: py, r, color: c, born: now, ko: false });
       bv.spawnAt = now; // relance l'anim de squash au point d'impact
+      this.setBodySprite(bv, this.heroTexture(hero, "hit"), r);
+      bv.hitUntil = now + 220;
     }
     bv.lastSpeed = speed;
     bv.lastX = px;
@@ -646,24 +680,17 @@ export class Renderer {
 
     if (bv.hero !== hero) {
       bv.hero = hero;
-      const tex = this.heroTexture(hero);
-      bv.sprite.texture = tex;
       // le sprite garde ses couleurs propres (pas de tint par camp — un rendu
       // sombre/clair selon le héros ne se teinterait pas de façon lisible) ;
       // le camp se lit au socle + au glow sous les pieds, cf. bv.base.
-      const applySpriteSize = (): void => {
-        const aspect = tex.height > 0 && tex.width > 0 ? tex.height / tex.width : 1;
-        const w = r * 2.3;
-        bv!.sprite.width = w;
-        bv!.sprite.height = w * aspect;
-        bv!.sprite.y = -r * 0.15; // recentre visuellement (les sprites ont du vide en pied)
-      };
-      if (tex.valid) applySpriteSize();
-      else tex.baseTexture.once("loaded", applySpriteSize);
+      this.setBodySprite(bv, this.heroTexture(hero), r);
       bv.label.text = GLYPH[hero];
       bv.label.style.fontSize = Math.round(r * 0.42);
       bv.label.style.fill = 0xffffff;
       bv.label.position.set(r * 0.68, r * 0.68);
+    } else if (bv.hitUntil && now >= bv.hitUntil) {
+      bv.hitUntil = 0;
+      this.setBodySprite(bv, this.heroTexture(hero), r);
     }
     bv.label.alpha = 0.55;
 

@@ -191,6 +191,40 @@ sans tout casser), et basculer `bv.sprite.texture` sur les deux hooks déjà en
 place dans `syncBody` (chute de vitesse, transition alive→false) — les mêmes
 qui alimentent déjà `renderImpacts()`.
 
+**Boulder fait, Comet reste bloqué (2026-09-12, session autonome)** : le
+quota ZeroGPU a mis environ 18h à revenir (bien plus que le « minuit UTC »
+supposé — probablement une fenêtre glissante liée à la dernière génération de
+la veille, pas un vrai reset quotidien fixe). Une fois revenu, seulement 2
+générations ont été possibles avant un nouveau blocage (« ZeroGPU quota
+exceeded — 90s requested vs 0s left ») : **Boulder touché + Boulder KO**
+générés, détourés (`scripts/process-hero-sprites.mjs`), intégrés. Comet
+touché/KO restent à générer (prompts prêts, cf. session : variante du prompt
+Boulder avec « sleek lean agile dasher character », « narrow diamond-shaped
+streamlined body », trait de mouvement coupé net).
+
+Intégration réalisée exactement comme prévu ci-dessus, avec un ajustement :
+`heroTexture()` est devenu `heroTexture(hero, variant)` avec cache par
+`${hero}:${url}`, et un nouveau `setBodySprite(bv, tex, r)` factorise le
+recalcul de taille (aspect ratio) à chaque changement de texture — nécessaire
+car les poses hit/KO n'ont pas forcément le même ratio que l'idle (Boulder KO
+est étalé au sol, beaucoup plus large que haut). Un `bv.hitUntil` (nouveau
+champ `BodyVisual`) fait revenir sur l'idle 220ms après un choc ; le KO ne
+revient jamais tout seul (le corps disparaît), mais un respawn (`!bv.lastAlive`
+→ `alive`) remet explicitement l'idle pour ne pas rester bloqué sur la pose KO
+après une résurrection.
+
+`npx tsc --noEmit`, `npm test`, `npm run check` tous verts. **Non vérifié en
+vrai avec certitude** : l'environnement d'automatisation navigateur de cette
+session tourne avec `document.hidden === true` en continu (aucune fenêtre au
+premier plan réelle), et la boucle de rendu se met en pause dans cet état
+(cf. règle du dessus) — impossible de laisser une résolution de tour se jouer
+en accéléré pour observer la pose « touché » (fenêtre de 220ms) ou confirmer
+qu'un respawn ne reste pas bloqué sur la pose KO. Vérifié en revanche : le
+sprite idle de Boulder s'affiche sans erreur console, les deux nouveaux
+fichiers PNG sont bien servis par Vite (200). **Prochaine session ou Zoe en
+vrai** : jouer un match avec Boulder des deux côtés, encaisser un choc et un
+KO, vérifier visuellement les poses et qu'un respawn revient bien à l'idle.
+
 **Équilibrage — signal objectif + un vrai correctif (2026-09-11 soir)**
 `scripts/balance-report.ts` (nouveau, pas dans `npm test`/`check` — un
 one-off comme `net-test.ts`) : round-robin d'équipes mono-héros (3x le même)
