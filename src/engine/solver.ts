@@ -128,8 +128,10 @@ export function resolve(prev: GameState, orderA: Order, orderB: Order): TurnResu
   for (let o = 0 as 0 | 1; o <= 1; o = (o + 1) as 0 | 1) {
     const order = orders[o];
     if (order.hold) continue;
+    // un héros qui a agi au tour précédent est en repos ce tour-ci (ordre
+    // ignoré, comme un héros mort ou introuvable) — rejouable dès le tour d'après
     const body = s.bodies.find(
-      (b) => b.id === order.bodyId && b.owner === o && b.alive,
+      (b) => b.id === order.bodyId && b.owner === o && b.alive && !b.actedLastTurn,
     );
     if (!body) continue;
     body.acting = true;

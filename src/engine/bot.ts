@@ -64,7 +64,7 @@ export function pickOrder(state: GameState, me: 0 | 1, level: BotLevel = 2): Ord
   const noise = level === 1 ? 900 : level === 2 ? 250 : 60;
   const asA = me === 0;
 
-  const mine = state.bodies.filter((b) => b.owner === me && b.alive);
+  const mine = state.bodies.filter((b) => b.owner === me && b.alive && !b.actedLastTurn);
   if (mine.length === 0) return { ...HOLD };
 
   let best: Order = { ...HOLD };

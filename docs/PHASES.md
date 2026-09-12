@@ -225,6 +225,41 @@ fichiers PNG sont bien servis par Vite (200). **Prochaine session ou Zoe en
 vrai** : jouer un match avec Boulder des deux côtés, encaisser un choc et un
 KO, vérifier visuellement les poses et qu'un respawn revient bien à l'idle.
 
+**Règle de repos entre tours (2026-09-13, demande directe de Zoe)** : un
+héros qui vient d'agir ne peut plus être choisi le tour suivant, mais
+redevient jouable au tour d'après (impossible de marteler le même héros deux
+tours d'affilée). Implémenté au niveau moteur — `solver.ts` traite un ordre
+ciblant un héros dont `actedLastTurn` est vrai comme un ordre invalide (même
+traitement qu'un héros mort ou introuvable, cf. `resolve()`), donc la règle
+est garantie côté serveur autoritaire sans rien changer à `server.ts` (même
+fonction `resolve()` des deux côtés) ni au hash de sync (`actedLastTurn` y
+était déjà inclus, ajouté pour la passive de Sling). `bot.ts` exclut ces
+héros de ses candidats. Côté UI (`match.ts`, `renderer.ts`) : piège classique
+à noter pour la suite — le champ à lire pour l'UI n'est **pas**
+`actedLastTurn` (qui ne se met à jour qu'au *prochain* `resolve()`, donc en
+retard d'un tour côté état affiché) mais `acting`, qui reflète directement
+« a agi pendant le tour qu'on vient de résoudre » dans `this.state` courant.
+Confusion faite une première fois, corrigée après. Héros en repos : sprite
+assombri (alpha 0.45) + anneau pointillé discret dans `renderer.ts`, et le
+bandeau d'action précise `"<Héros> a joué le tour dernier, il est en repos
+ce tour-ci."` dans `match.ts`. Règle documentée dans
+`docs/ricochet-playbook.html` §01 et dans le codex héros (`ui.ts`).
+
+Test dédié dans `solver.test.ts` (héros agit tour 1, ignoré tour 2, agit de
+nouveau tour 3) + `npx tsc --noEmit`/`npm test`/`npm run check`/`npm run
+build` tous verts. Vérifié en vrai dans le navigateur : le hint texte est
+apparu correctement (« Boulder a joué le tour dernier... ») et un
+`console.log` temporaire dans `renderer.ts` a confirmé au runtime
+`acting=true` / `cooling=true` pour Boulder au tour 2 — la logique est donc
+prouvée correcte à l'exécution, mais l'indicateur visuel (assombrissement +
+anneau) n'a pas pu être confirmé à l'œil dans cette session : même limite
+que pour les animations ci-dessus (`document.hidden` en continu dans cet
+environnement d'automatisation, la boucle de rendu ne se repeint que de
+façon sporadique, liée aux captures d'écran CDP plutôt qu'à un vrai
+`requestAnimationFrame` continu — confirmé en instrumentant `window.rAF`,
+qui reste à 0 tant qu'aucun screenshot n'est demandé). **À confirmer
+visuellement par Zoe** en jouant un vrai match.
+
 **Équilibrage — signal objectif + un vrai correctif (2026-09-11 soir)**
 `scripts/balance-report.ts` (nouveau, pas dans `npm test`/`check` — un
 one-off comme `net-test.ts`) : round-robin d'équipes mono-héros (3x le même)

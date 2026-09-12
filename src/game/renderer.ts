@@ -356,7 +356,11 @@ export class Renderer {
         }
         const sel = b.id === v.selectedId;
         const armedHere = armPreview && b.owner === v.activeSide;
-        this.syncBody(b.id, b.owner, b.hero, sx(b.x), sx(b.y), true, false, sel, sel && v.abilityArmed === true, now, armedHere);
+        const cooling =
+          b.owner === v.activeSide &&
+          b.acting &&
+          (v.phase === "select" || v.phase === "aim");
+        this.syncBody(b.id, b.owner, b.hero, sx(b.x), sx(b.y), true, false, sel, sel && v.abilityArmed === true, now, armedHere, cooling);
       }
       if (v.aim && v.phase === "aim" && !v.curtainFor) {
         const selBody = v.selectedId !== null ? s.bodies.find((b) => b.id === v.selectedId) : undefined;
@@ -585,6 +589,7 @@ export class Renderer {
     armed: boolean,
     now: number,
     armPreview = false,
+    cooling = false,
   ): void {
     let bv = this.bodies.get(id);
     if (!bv) {
@@ -727,6 +732,11 @@ export class Renderer {
         bv.ring.lineStyle(2, GOLD, 0.45);
         bv.ring.drawCircle(0, 0, r + 16);
       }
+    }
+    // en repos : a agi le tour précédent, indisponible ce tour-ci (rejouable au suivant)
+    if (cooling) {
+      bv.container.alpha = 0.45;
+      dashedCircle(bv.ring, 0, 0, r + 6, 2, INK, 0.35, 2, 4);
     }
   }
 

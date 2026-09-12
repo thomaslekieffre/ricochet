@@ -105,6 +105,23 @@ describe("solver — mode Contrôle", () => {
     expect(s.hold[0]).toBeGreaterThan(0);
   });
 
+  it("un héros qui a agi ne peut pas rejouer le tour suivant, mais rejoue au tour d'après", () => {
+    let s = newMatch({ teamA: A, teamB: B });
+    const heroId = s.bodies.find((b) => b.owner === 0)!.id;
+
+    // tour 1 : agit normalement
+    s = resolve(s, towardZone(s, heroId), HOLD).state;
+    expect(s.bodies.find((b) => b.id === heroId)!.acting).toBe(true);
+
+    // tour 2 : même ordre soumis, mais le héros est en repos -> ignoré comme un hold
+    s = resolve(s, towardZone(s, heroId), HOLD).state;
+    expect(s.bodies.find((b) => b.id === heroId)!.acting).toBe(false);
+
+    // tour 3 : de nouveau disponible
+    s = resolve(s, towardZone(s, heroId), HOLD).state;
+    expect(s.bodies.find((b) => b.id === heroId)!.acting).toBe(true);
+  });
+
   it("termine la partie quand une jauge atteint la cible", () => {
     let s = newMatch({ teamA: A, teamB: B, config: { targetHold: 3, maxTurns: 200 } });
     for (let i = 0; i < 60 && !s.over; i++) s = resolve(s, towardZone(s, 0), HOLD).state;

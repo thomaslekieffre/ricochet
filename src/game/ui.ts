@@ -422,7 +422,8 @@ export function codexScreen(onBack: () => void): void {
   const el = show(`
     <div class="screen wide codex">
       <h2>Les héros</h2>
-      <p class="sub">1 héros bouge par tour. Sa <b>capacité</b> se déclenche avec <kbd>A</kbd>
+      <p class="sub">1 héros bouge par tour, puis se repose un tour avant de pouvoir
+        rejouer. Sa <b>capacité</b> se déclenche avec <kbd>A</kbd>
         et coûte du Momentum : +1 par tour, plafond 5, tu démarres à 2.</p>
       <div class="codex-grid">${cards}</div>
       <button class="cta" id="back">Retour</button>

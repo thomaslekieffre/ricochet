@@ -421,15 +421,18 @@ export class Match {
 
   // ---- input ------------------------------------------------------------
 
+  // NB : this.state est le résultat du dernier tour résolu. `acting` y reflète
+  // "a agi au tour qu'on vient de résoudre" — c'est `actedLastTurn` (utilisé
+  // côté moteur, cf. solver.ts) qui ne sera mis à jour qu'au *prochain* resolve().
   private myBodies(): { id: number; x: number; y: number; r: number }[] {
     return this.state.bodies
-      .filter((b) => b.owner === this.activeSide && b.alive)
+      .filter((b) => b.owner === this.activeSide && b.alive && !b.acting)
       .map((b) => ({ id: b.id, x: b.x, y: b.y, r: fx.toFloat(b.radius) }));
   }
 
   private selectHero(id: number): void {
     const b = this.state.bodies.find((x) => x.id === id);
-    if (!b || !b.alive || b.owner !== this.activeSide) return;
+    if (!b || !b.alive || b.owner !== this.activeSide || b.acting) return;
     this.selectedId = id;
     this.phase = "aim";
     // NB : on ne désarme PAS ici — armer la capacité AVANT de prendre un héros
@@ -773,9 +776,15 @@ export class Match {
         this.els.abCost.textContent = "";
         this.els.abActive.classList.toggle("armed", this.abilityArmed);
         this.els.abActive.classList.remove("cant");
-        this.els.abHint.textContent = this.abilityArmed
+        const resting = this.state.bodies.find(
+          (b) => b.owner === this.activeSide && b.alive && b.acting,
+        );
+        const baseHint = this.abilityArmed
           ? "Capacité armée pour ce tour. Attrape un héros et lance-le."
           : "Attrape un héros et glisse : clic gauche = lancer, clic droit = lancer avec la capacité.";
+        this.els.abHint.textContent = resting
+          ? `${baseHint} ${HEROES[resting.hero].name} a joué le tour dernier, il est en repos ce tour-ci.`
+          : baseHint;
         this.els.abHint.hidden = false;
       }
     } else {
