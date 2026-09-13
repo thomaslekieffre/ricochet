@@ -160,10 +160,17 @@ routerAdd("POST", "/api/settle-match", (e) => {
     app.save(bp);
 
     if (newTier <= prevTier) return;
+    // Table palier -> cosmétique : le champ `tier` de `cosmetics` (seedé dans
+    // 1757581380_battlepass_tiers.js) porte le palier requis. `tier <= newTier`
+    // (pas une fenêtre [prevTier, newTier]) pour que passer en premium en
+    // cours de saison rattrape aussi les paliers premium déjà franchis —
+    // idempotent grâce à la vérification `owned` ci-dessous.
     const filter = premium
-      ? "source = 'battlepass_free' || source = 'battlepass_premium'"
-      : "source = 'battlepass_free'";
-    const unlocked = app.findRecordsByFilter("cosmetics", filter, "", 500, 0);
+      ? "tier <= {:cur} && (source = 'battlepass_free' || source = 'battlepass_premium')"
+      : "tier <= {:cur} && source = 'battlepass_free'";
+    const unlocked = app.findRecordsByFilter("cosmetics", filter, "", 500, 0, {
+      cur: newTier,
+    });
     const ownershipCol = app.findCollectionByNameOrId("ownership");
     for (const c of unlocked) {
       const owned = findOne(app, "ownership", "user = {:u} && cosmetic = {:c}", {
@@ -172,8 +179,6 @@ routerAdd("POST", "/api/settle-match", (e) => {
       });
       if (!owned) app.save(new Record(ownershipCol, { user: userId, cosmetic: c.id }));
     }
-    // (l'attribution par palier précis se fait via une table palier -> cosmétique,
-    //  à ajouter quand le contenu de la saison 1 est défini — cf. supabase/0003 d'origine)
   }
 
   const secret = $os.getenv("MATCH_SETTLE_SECRET");

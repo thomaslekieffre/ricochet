@@ -15,12 +15,22 @@ export interface MenuScreenProps {
   onCodex: () => void;
   onSpectate: () => void;
   onRank: () => void;
+  onLocker: () => void;
 }
 
 type Mode = StartOpts["mode"];
 type BotLevel = StartOpts["botLevel"];
 
-export function MenuScreen({ chip, onStart, onReplay, onProfile, onCodex, onSpectate, onRank }: MenuScreenProps) {
+export function MenuScreen({
+  chip,
+  onStart,
+  onReplay,
+  onProfile,
+  onCodex,
+  onSpectate,
+  onRank,
+  onLocker,
+}: MenuScreenProps) {
   const [mode, setMode] = useState<Mode>("bot");
   const [botLevel, setBotLevel] = useState<BotLevel>(2);
   const [arenaId, setArenaId] = useState("carrefour");
@@ -109,6 +119,9 @@ export function MenuScreen({ chip, onStart, onReplay, onProfile, onCodex, onSpec
         </button>
         <button className="linkbtn" onClick={onRank}>
           Classement
+        </button>
+        <button className="linkbtn" onClick={onLocker}>
+          Vestiaire
         </button>
       </div>
     </div>

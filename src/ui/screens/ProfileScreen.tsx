@@ -19,6 +19,8 @@ export interface ProfileView {
   winrate: number;
   streakLabel: string;
   ratingLine: string;
+  /** Titre équipé (docs/PHASES.md P7), absent si aucun. */
+  equippedTitle?: string;
   /** Jauge de progression dans le palier classé courant ; absente si non classé. */
   tier?: { pct: number; label: string };
   history: HistoryRow[];
@@ -70,6 +72,7 @@ export function ProfileScreen({ view: v, onBack, onRename, onReset, onAccount, a
         <span className="pbig-name">{v.name}</span>
         <span className="pbig-lv">Nv {v.level}</span>
       </div>
+      {v.equippedTitle && <p className="sub">{v.equippedTitle}</p>}
       <p className="ratingline">{v.ratingLine}</p>
       <p className="sub">
         {v.xp} XP total{v.streakLabel ? ` · ${v.streakLabel}` : ""}

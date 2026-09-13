@@ -54,6 +54,9 @@ export interface Profile {
   /** nombre de parties qui ont fait bouger `rating`. */
   ranked: number;
   history: MatchRecord[];
+  /** Cosmétiques équipées (slug PocketBase), purement locales à ce navigateur — `docs/PHASES.md` P7. */
+  equippedTitle?: string | null;
+  equippedBorder?: string | null;
 }
 
 // ---- stockage (avec une couture pour les tests) -------------------------------
@@ -146,6 +149,13 @@ export function clearProfile(): void {
 
 export function renameProfile(p: Profile, name: string): Profile {
   const next = { ...p, name: sanitizeName(name) || p.name };
+  saveProfile(next);
+  return next;
+}
+
+/** Équipe (ou déséquipe si `slug` est `null`) un titre/une bordure possédé — `docs/PHASES.md` P7. */
+export function equipCosmetic(p: Profile, kind: "title" | "border", slug: string | null): Profile {
+  const next = kind === "title" ? { ...p, equippedTitle: slug } : { ...p, equippedBorder: slug };
   saveProfile(next);
   return next;
 }

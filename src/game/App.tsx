@@ -8,6 +8,7 @@ import { Session } from "../net/session";
 import {
   applyOutcome,
   clearProfile,
+  equipCosmetic,
   freshProfile,
   levelFromXp,
   loadProfile,
@@ -16,6 +17,8 @@ import {
   saveProfile,
   winrate,
 } from "../lib/profile";
+import { Cosmetics } from "../net/cosmetics";
+import type { Cosmetic } from "../net/cosmetics";
 import type { Profile } from "../lib/profile";
 import { Match } from "./match";
 import type { MatchOpts } from "./match";
@@ -34,6 +37,7 @@ import type { MenuChip } from "../ui/screens/MenuScreen";
 import { NameScreen } from "../ui/screens/NameScreen";
 import { NoticeScreen } from "../ui/screens/NoticeScreen";
 import { OnlineDraftScreen } from "../ui/screens/OnlineDraftScreen";
+import { LockerScreen } from "../ui/screens/LockerScreen";
 import { ProfileScreen } from "../ui/screens/ProfileScreen";
 import type { HistoryRow, ProfileView } from "../ui/screens/ProfileScreen";
 import { RankScreen } from "../ui/screens/RankScreen";
@@ -105,6 +109,13 @@ type Screen =
       seasonName: string | null;
       me: RankRow | null;
       rows: RankRow[];
+    }
+  | {
+      kind: "locker";
+      loading: boolean;
+      error: string | null;
+      catalog: Cosmetic[];
+      owned: Set<string>;
     };
 
 /**
@@ -345,6 +356,7 @@ export function App({ host, hud }: { host: HTMLElement; hud: HudEls }) {
         winrate: winrate(p),
         streakLabel,
         ratingLine,
+        equippedTitle: p.equippedTitle ?? undefined,
         tier: tierGauge,
         history,
       },
@@ -621,6 +633,43 @@ export function App({ host, hud }: { host: HTMLElement; hud: HudEls }) {
     }
   }
 
+  // ---- vestiaire ------------------------------------------------------
+
+  function showLocker(): void {
+    const user = Session.user();
+    if (!user) {
+      setScreen({
+        kind: "notice",
+        title: "Connecte-toi",
+        sub: "Le vestiaire suit ton compte PocketBase — connecte-toi depuis ton profil.",
+        onOk: () => toMenu(),
+      });
+      return;
+    }
+    setScreen({ kind: "locker", loading: true, error: null, catalog: [], owned: new Set() });
+    void loadLocker(user.id);
+  }
+
+  async function loadLocker(userId: string): Promise<void> {
+    const token = Session.token();
+    try {
+      const [catalog, owned] = await Promise.all([
+        Cosmetics.catalog(),
+        token ? Cosmetics.owned(userId, token) : Promise.resolve(new Set<string>()),
+      ]);
+      setScreen({ kind: "locker", loading: false, error: null, catalog, owned });
+    } catch (e) {
+      setScreen({ kind: "locker", loading: false, error: (e as Error).message, catalog: [], owned: new Set() });
+    }
+  }
+
+  function equip(kind: "title" | "border", slug: string | null): void {
+    const p = profileRef.current;
+    if (!p) return;
+    updateProfile(equipCosmetic(p, kind, slug));
+    showLocker();
+  }
+
   // ---- rendu ----------------------------------------------------
 
   function renderSession() {
@@ -658,6 +707,7 @@ export function App({ host, hud }: { host: HTMLElement; hud: HudEls }) {
           onCodex={() => setScreen({ kind: "codex" })}
           onSpectate={startSpectate}
           onRank={showRank}
+          onLocker={showLocker}
         />
       );
     case "name":
@@ -731,6 +781,19 @@ export function App({ host, hud }: { host: HTMLElement; hud: HudEls }) {
           me={screen.me}
           rows={screen.rows}
           onRefresh={showRank}
+          onBack={toMenu}
+        />
+      );
+    case "locker":
+      return (
+        <LockerScreen
+          loading={screen.loading}
+          error={screen.error}
+          catalog={screen.catalog}
+          owned={screen.owned}
+          equippedTitle={profile?.equippedTitle ?? null}
+          equippedBorder={profile?.equippedBorder ?? null}
+          onEquip={equip}
           onBack={toMenu}
         />
       );
