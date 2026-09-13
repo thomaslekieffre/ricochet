@@ -42,7 +42,7 @@ export function MenuScreen({
       {chip ? (
         <button className="pchip" title="Ton profil" onClick={onProfile}>
           <span className="pn">{chip.name}</span>
-          <span className="pl">Nv {chip.level}</span>
+          <span className="pl">⭐ Nv {chip.level}</span>
           <span className="pd">{chip.line}</span>
         </button>
       ) : (

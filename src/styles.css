@@ -206,39 +206,41 @@ canvas#stage {
   font-family: var(--sans);
 }
 
-/* --- tableau de score en haut --- */
+/* --- tableau de score en haut — bandeaux « étiquette de joueur » façon BUMP --- */
 .hud-top {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
-  align-items: start;
+  align-items: center;
   gap: 0.8rem;
 }
 .score {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 3px;
-  padding: 0.3rem 0.55rem 0.4rem;
-  border: 1px solid transparent;
-  border-radius: 2px;
-  transition: border-color 140ms ease, background 140ms ease;
+  gap: 0.5rem;
+  padding: 0.3rem 0.7rem;
+  background: var(--panel-2);
+  border: 2px solid currentColor;
+  border-radius: 999px;
+  box-shadow: 0 3px 0 rgba(4, 14, 30, 0.4);
+  transition: box-shadow 140ms ease, transform 140ms ease;
 }
-.score.turn { border-color: currentColor; background: rgba(11, 35, 67, 0.55); }
+.score-b { flex-direction: row-reverse; }
+.score.turn { box-shadow: 0 3px 0 rgba(4, 14, 30, 0.4), 0 0 0 3px rgba(255, 255, 255, 0.12); transform: scale(1.04); }
 .score-a { color: var(--side-a); }
 .score-b { color: var(--side-b); }
 .score .who {
   font-family: var(--sans);
-  font-size: 0.66rem;
+  font-size: 0.64rem;
   font-weight: 700;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.03em;
   text-transform: uppercase;
-  color: currentColor;
-  opacity: 0.85;
+  color: var(--ink);
+  opacity: 0.9;
 }
 .score b {
   font-family: var(--disp);
   font-weight: 800;
-  font-size: 2rem;
+  font-size: 1.3rem;
   line-height: 1;
   color: currentColor;
   font-variant-numeric: tabular-nums;
@@ -247,9 +249,9 @@ canvas#stage {
 /* jauge de Momentum — cinq cellules dures qui se remplissent d'ambre */
 .mom { display: flex; gap: 3px; }
 .mom i {
-  width: 13px;
-  height: 6px;
-  border-radius: 1px;
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
   background: var(--panel-2);
   box-shadow: inset 0 0 0 1px var(--line);
   transition: background 140ms ease, box-shadow 140ms ease;
@@ -259,32 +261,40 @@ canvas#stage {
 .mom i.spend { background: var(--side-b); box-shadow: inset 0 0 0 1px var(--side-b); }
 .score .mom { transform: scale(0.82); }
 
+/* badge central façon « jeton de tour » BUMP — pilule sombre à bord épais,
+   posée au-dessus du terrain entre les deux étiquettes de joueur. */
 .mid {
   text-align: center;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
-  padding-top: 0.15rem;
+  gap: 3px;
   min-width: 0;
+  background: var(--panel-2);
+  border: 2px solid var(--zone);
+  border-radius: 999px;
+  padding: 0.3rem 1.1rem 0.4rem;
+  box-shadow: 0 3px 0 rgba(4, 14, 30, 0.4);
 }
 .mid #turnlabel {
-  font-size: 0.72rem;
-  color: var(--muted);
+  font-family: var(--disp);
+  font-weight: 800;
+  font-size: 0.78rem;
+  color: var(--zone);
   letter-spacing: 0.01em;
   font-variant-numeric: tabular-nums;
 }
 .mid #prompt {
   font-family: var(--disp);
   font-weight: 700;
-  font-size: 1rem;
+  font-size: 0.92rem;
   letter-spacing: -0.01em;
   color: var(--ink);
 }
 .timerwrap {
-  width: min(220px, 40vw);
+  width: min(180px, 32vw);
   height: 3px;
-  background: var(--panel-2);
+  background: var(--panel);
   border-radius: 2px;
   overflow: hidden;
 }
@@ -312,10 +322,10 @@ canvas#stage {
   min-width: 0;
   max-width: 34rem;
   pointer-events: none;
-  background: rgba(11, 35, 67, 0.82);
-  border: 1px solid var(--line);
-  border-radius: 2px;
-  padding: 0.5rem 0.65rem;
+  background: rgba(11, 35, 67, 0.88);
+  border: 2px solid var(--line);
+  border-radius: 20px;
+  padding: 0.55rem 0.8rem;
   backdrop-filter: blur(2px);
 }
 .ab-head { display: flex; align-items: baseline; gap: 0.55rem; }
@@ -346,8 +356,8 @@ canvas#stage {
   font: inherit;
   text-align: left;
   cursor: pointer;
-  border: 1px solid var(--momentum);
-  border-radius: 2px;
+  border: 2px solid var(--momentum);
+  border-radius: 999px;
   background: rgba(255, 176, 32, 0.1);
   color: var(--ink);
   transition: background 140ms ease, box-shadow 140ms ease, opacity 140ms ease;
@@ -360,8 +370,8 @@ canvas#stage {
   font-size: 0.66rem;
   color: var(--on-a);
   background: var(--momentum);
-  border-radius: 2px;
-  padding: 0.1rem 0.36rem;
+  border-radius: 999px;
+  padding: 0.1rem 0.44rem;
 }
 .ab-aname {
   font-family: var(--disp);
@@ -421,18 +431,23 @@ canvas#stage {
   align-items: flex-end;
   gap: 0.35rem;
 }
+/* bouton « Passer » façon jeton rond READY de BUMP */
 .ab-tail button {
   pointer-events: auto;
-  background: rgba(11, 35, 67, 0.92);
-  border: 1px solid var(--line);
-  border-radius: 2px;
+  background: var(--panel-2);
+  border: 2px solid var(--zone);
+  border-radius: 999px;
   color: var(--ink);
   font: inherit;
+  font-weight: 700;
   font-size: 0.82rem;
-  padding: 0.4rem 0.7rem;
+  padding: 0.5rem 1.1rem;
   cursor: pointer;
+  box-shadow: 0 3px 0 rgba(4, 14, 30, 0.4);
+  transition: transform 90ms ease, box-shadow 90ms ease;
 }
-.ab-tail button:hover { border-color: var(--zone); }
+.ab-tail button:hover { border-color: var(--ink); transform: translateY(-1px); box-shadow: 0 4px 0 rgba(4, 14, 30, 0.4); }
+.ab-tail button:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(4, 14, 30, 0.4); }
 #timer {
   font-weight: 700;
   color: var(--momentum);
@@ -589,7 +604,8 @@ canvas#stage {
   font-size: clamp(3rem, 12vw, 4.6rem);
   line-height: 0.9;
   color: var(--on-a);
-  background: var(--side-a);
+  /* deux tons en diagonale, comme le bouton FIGHT! de référence */
+  background: linear-gradient(135deg, var(--side-a) 0 55%, var(--momentum) 55% 100%);
   border: none;
   padding: 0.5rem 2.2rem 0.65rem;
   cursor: pointer;
