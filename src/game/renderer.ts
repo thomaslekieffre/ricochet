@@ -329,7 +329,15 @@ export class Renderer {
   }
 
   private resize(): void {
-    this.dpr = Math.min(window.devicePixelRatio || 1, 2);
+    // Le canvas est dessiné dans un repère logique fixe (VIEW_W x VIEW_H,
+    // cf. SCALE plus haut) mais affiché en CSS à la taille de #stagewrap, qui
+    // peut être bien plus grande sur un grand écran (cf. media query dans
+    // styles.css) — sans en tenir compte ici, le rendu WebGL reste à la
+    // résolution logique et se retrouve étiré/flou en CSS. `resolution`
+    // compense cet étirement en plus du ratio de pixels de l'écran.
+    const cssW = this.canvas.getBoundingClientRect().width || VIEW_W;
+    const stretch = cssW / VIEW_W;
+    this.dpr = Math.min((window.devicePixelRatio || 1) * stretch, 4);
     this.app.renderer.resolution = this.dpr;
     this.app.renderer.resize(VIEW_W, VIEW_H);
   }

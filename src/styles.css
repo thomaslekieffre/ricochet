@@ -49,6 +49,11 @@ body {
 }
 
 #app { width: 100%; max-width: 960px; position: relative; z-index: 1; }
+/* Sur grand écran, on utilise vraiment l'espace du bureau plutôt que de
+   rester figé à 960px avec du vide de chaque côté. */
+@media (min-width: 1040px) {
+  #app { max-width: min(94vw, 1680px); }
+}
 
 /* ---- confettis de fond — clin d'œil « stand de fête foraine », décoratif pur ---- */
 .confetti { position: fixed; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
