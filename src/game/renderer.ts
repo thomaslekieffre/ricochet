@@ -7,6 +7,8 @@ import boulderUrl from "../assets/heroes/boulder.png";
 import boulderHitUrl from "../assets/heroes/boulder_hit.png";
 import boulderKoUrl from "../assets/heroes/boulder_ko.png";
 import cometUrl from "../assets/heroes/comet.png";
+import cometHitUrl from "../assets/heroes/comet_hit.png";
+import cometKoUrl from "../assets/heroes/comet_ko.png";
 import hookUrl from "../assets/heroes/hook.png";
 import prismUrl from "../assets/heroes/prism.png";
 import ramUrl from "../assets/heroes/ram.png";
@@ -23,7 +25,7 @@ type SpriteVariant = "idle" | "hit" | "ko";
 const SPRITE_URL: Record<HeroKind, { idle: string; hit?: string; ko?: string }> = {
   boulder: { idle: boulderUrl, hit: boulderHitUrl, ko: boulderKoUrl },
   ram: { idle: ramUrl },
-  comet: { idle: cometUrl },
+  comet: { idle: cometUrl, hit: cometHitUrl, ko: cometKoUrl },
   hook: { idle: hookUrl },
   sling: { idle: slingUrl },
   prism: { idle: prismUrl },

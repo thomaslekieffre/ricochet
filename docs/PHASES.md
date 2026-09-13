@@ -233,6 +233,33 @@ ajouter les imports + entrée `comet: {idle, hit, ko}` dans `SPRITE_URL`
 confirmer en vrai (match Comet vs Comet, choc + KO + respawn) avant de
 commit.
 
+**Comet fait (2026-09-13, quota revenu)** : quota ZeroGPU débloqué en
+cours de session. Les deux prompts ci-dessus générés du premier coup sur
+`https://black-forest-labs-flux-1-schnell.hf.space/` (Space directe plutôt
+que la page wrapper `huggingface.co/spaces/...` — nécessaire pour
+récupérer l'URL du fichier généré en JS sans se heurter au cross-origin
+de l'iframe wrapper). Récupérés via l'URL `gradio_api/file=...image.webp`
+qu'expose le composant `<img>` une fois l'image prête, téléchargés en
+direct (`curl`) plutôt que via le bouton de téléchargement du site (a
+déclenché un comportement navigateur incontrôlable une première fois —
+contourné en travaillant sur l'URL du fichier plutôt que sur l'UI).
+Détourés avec `node scripts/process-hero-sprites.mjs` (même pipeline,
+zéro changement de script) puis intégrés dans `SPRITE_URL.comet` de
+`renderer.ts` exactement comme Boulder. Les 6 héros ont donc chacun leur
+pose idle ; Boulder et Comet ont en plus touché/KO — les 4 autres restent
+sur idle seul (prochaine étape si on veut continuer, même pipeline).
+
+Recette testée en vrai (hotseat, Comet des deux côtés dès le premier tour
+via ban/pick) : sprite idle affiché sans erreur sur plusieurs tours,
+plusieurs collisions déclenchées entre héros (confirmé via l'anneau de
+choc visuel), zéro erreur console. La fenêtre de 220ms du sprite « touché »
+et la pose KO n'ont pas pu être confirmées à l'œil dans cet environnement
+d'automatisation (même limite déjà documentée pour Boulder : le rendu ne
+se repeint que de façon sporadique, lié aux captures d'écran CDP plutôt
+qu'à un vrai `requestAnimationFrame` continu) — mécanisme identique à
+celui de Boulder, déjà vérifié bit à bit dans la session précédente.
+`tsc`/`test`/`check`/`build` verts.
+
 Intégration réalisée exactement comme prévu ci-dessus, avec un ajustement :
 `heroTexture()` est devenu `heroTexture(hero, variant)` avec cache par
 `${hero}:${url}`, et un nouveau `setBodySprite(bv, tex, r)` factorise le
