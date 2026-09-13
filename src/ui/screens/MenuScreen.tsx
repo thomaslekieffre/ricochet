@@ -14,12 +14,13 @@ export interface MenuScreenProps {
   onProfile: () => void;
   onCodex: () => void;
   onSpectate: () => void;
+  onRank: () => void;
 }
 
 type Mode = StartOpts["mode"];
 type BotLevel = StartOpts["botLevel"];
 
-export function MenuScreen({ chip, onStart, onReplay, onProfile, onCodex, onSpectate }: MenuScreenProps) {
+export function MenuScreen({ chip, onStart, onReplay, onProfile, onCodex, onSpectate, onRank }: MenuScreenProps) {
   const [mode, setMode] = useState<Mode>("bot");
   const [botLevel, setBotLevel] = useState<BotLevel>(2);
   const [arenaId, setArenaId] = useState("carrefour");
@@ -105,6 +106,9 @@ export function MenuScreen({ chip, onStart, onReplay, onProfile, onCodex, onSpec
         </button>
         <button className="linkbtn" onClick={onSpectate}>
           Regarder un match en direct
+        </button>
+        <button className="linkbtn" onClick={onRank}>
+          Classement
         </button>
       </div>
     </div>

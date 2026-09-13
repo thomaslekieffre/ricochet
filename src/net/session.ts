@@ -25,7 +25,7 @@ interface StoredSession {
   user: SessionUser;
 }
 
-function pocketbaseUrl(): string {
+export function pocketbaseUrl(): string {
   const env = (import.meta as { env?: Record<string, string> }).env;
   return env?.VITE_POCKETBASE_URL || "http://127.0.0.1:8090";
 }

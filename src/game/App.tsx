@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { GameState, HeroKind } from "../engine/index";
 import { NetClient } from "../net/client";
+import { Leaderboard } from "../net/leaderboard";
+import type { RankRow } from "../net/leaderboard";
 import type { ServerMsg } from "../net/protocol";
 import { Session } from "../net/session";
 import {
@@ -34,6 +36,7 @@ import { NoticeScreen } from "../ui/screens/NoticeScreen";
 import { OnlineDraftScreen } from "../ui/screens/OnlineDraftScreen";
 import { ProfileScreen } from "../ui/screens/ProfileScreen";
 import type { HistoryRow, ProfileView } from "../ui/screens/ProfileScreen";
+import { RankScreen } from "../ui/screens/RankScreen";
 import { ResultScreen } from "../ui/screens/ResultScreen";
 import { SearchingScreen } from "../ui/screens/SearchingScreen";
 import { SpectateListScreen } from "../ui/screens/SpectateListScreen";
@@ -94,6 +97,14 @@ type Screen =
       onWatch: (matchId: string) => void;
       onRefresh: () => void;
       onCancel: () => void;
+    }
+  | {
+      kind: "rank";
+      loading: boolean;
+      error: string | null;
+      seasonName: string | null;
+      me: RankRow | null;
+      rows: RankRow[];
     };
 
 /**
@@ -576,6 +587,40 @@ export function App({ host, hud }: { host: HTMLElement; hud: HudEls }) {
     client.send({ t: "spectate", matchId });
   }
 
+  // ---- classement ---------------------------------------------------
+
+  function showRank(): void {
+    const user = Session.user();
+    if (!user) {
+      setScreen({
+        kind: "notice",
+        title: "Connecte-toi",
+        sub: "Le classement suit ton compte PocketBase — connecte-toi depuis ton profil.",
+        onOk: () => toMenu(),
+      });
+      return;
+    }
+    setScreen({ kind: "rank", loading: true, error: null, seasonName: null, me: null, rows: [] });
+    void loadRank(user.id, user.name);
+  }
+
+  async function loadRank(userId: string, name: string): Promise<void> {
+    try {
+      const season = await Leaderboard.activeSeason();
+      if (!season) {
+        setScreen({ kind: "rank", loading: false, error: null, seasonName: null, me: null, rows: [] });
+        return;
+      }
+      const [me, rows] = await Promise.all([
+        Leaderboard.myRating(season.id, userId, name),
+        Leaderboard.top(season.id),
+      ]);
+      setScreen({ kind: "rank", loading: false, error: null, seasonName: season.name, me, rows });
+    } catch (e) {
+      setScreen({ kind: "rank", loading: false, error: (e as Error).message, seasonName: null, me: null, rows: [] });
+    }
+  }
+
   // ---- rendu ----------------------------------------------------
 
   function renderSession() {
@@ -612,6 +657,7 @@ export function App({ host, hud }: { host: HTMLElement; hud: HudEls }) {
           onProfile={showProfile}
           onCodex={() => setScreen({ kind: "codex" })}
           onSpectate={startSpectate}
+          onRank={showRank}
         />
       );
     case "name":
@@ -674,6 +720,18 @@ export function App({ host, hud }: { host: HTMLElement; hud: HudEls }) {
           onWatch={screen.onWatch}
           onRefresh={screen.onRefresh}
           onCancel={screen.onCancel}
+        />
+      );
+    case "rank":
+      return (
+        <RankScreen
+          loading={screen.loading}
+          error={screen.error}
+          seasonName={screen.seasonName}
+          me={screen.me}
+          rows={screen.rows}
+          onRefresh={showRank}
+          onBack={toMenu}
         />
       );
     }
