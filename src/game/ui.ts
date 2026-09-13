@@ -11,6 +11,7 @@ import { NameScreen } from "../ui/screens/NameScreen";
 import { NoticeScreen } from "../ui/screens/NoticeScreen";
 import { ProfileScreen } from "../ui/screens/ProfileScreen";
 import type { HistoryRow, ProfileView } from "../ui/screens/ProfileScreen";
+import { ResultScreen } from "../ui/screens/ResultScreen";
 import { SearchingScreen } from "../ui/screens/SearchingScreen";
 import { SpectateListScreen } from "../ui/screens/SpectateListScreen";
 import type { SpectateRow } from "../ui/screens/SpectateListScreen";
@@ -381,16 +382,6 @@ export function profileScreen(
   );
 }
 
-/** Remplit toutes les jauges `.xpbar span[data-fill]` du conteneur (anim au montage). */
-function animateBars(el: HTMLElement): void {
-  const bars = el.querySelectorAll<HTMLElement>(".xpbar span[data-fill]");
-  requestAnimationFrame(() => {
-    bars.forEach((b) => {
-      b.style.width = `${b.dataset.fill}%`;
-    });
-  });
-}
-
 export function resultScreen(
   title: string,
   sub: string,
@@ -400,28 +391,23 @@ export function resultScreen(
   progressHtml?: string,
   tone: "win" | "loss" | "neutral" = "neutral",
 ): void {
-  const el = show(`
-    <div class="screen result" data-tone="${tone}">
-      <p class="outcome">${title}</p>
-      <p class="sub">${sub}</p>
-      ${progressHtml ?? ""}
-      <div class="rowbtns">
-        <button class="cta" id="again">Rejouer</button>
-        <button class="cta ghost" id="menu">Menu</button>
-      </div>
-      ${onDownloadReplay ? `<button class="linkbtn" id="dl" style="margin-top:0.9rem">Télécharger le replay</button>` : ""}
-    </div>
-  `);
-  animateBars(el);
-  el.querySelector("#again")!.addEventListener("click", () => {
-    hideOverlay();
-    onRematch();
-  });
-  el.querySelector("#menu")!.addEventListener("click", () => {
-    hideOverlay();
-    onMenu();
-  });
-  el.querySelector("#dl")?.addEventListener("click", () => onDownloadReplay?.());
+  showReact(
+    createElement(ResultScreen, {
+      title,
+      sub,
+      progressHtml,
+      tone,
+      onRematch: () => {
+        hideOverlay();
+        onRematch();
+      },
+      onMenu: () => {
+        hideOverlay();
+        onMenu();
+      },
+      onDownloadReplay,
+    }),
+  );
 }
 
 export function curtain(text: string, onGo: () => void): void {
