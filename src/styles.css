@@ -30,6 +30,8 @@
    sombre reste posé sur le terrain pendant tout le match. */
 [hidden] { display: none !important; }
 
+html, body { height: 100%; }
+
 body {
   margin: 0;
   background-color: var(--bg);
@@ -45,10 +47,24 @@ body {
   -webkit-font-smoothing: antialiased;
   display: flex;
   justify-content: center;
-  padding: 1.6rem 1rem 3rem;
+  padding: 0.9rem 1rem;
+  /* Tout le jeu doit tenir dans la fenêtre, sans scroll de page — seul le
+     contenu d'un écran ponctuellement trop long (codex, historique...)
+     scrolle en interne, cf. #overlay/#curtain plus bas. */
+  height: 100dvh;
+  overflow: hidden;
 }
 
-#app { width: 100%; max-width: 960px; position: relative; z-index: 1; }
+#app {
+  width: 100%;
+  max-width: 960px;
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
 /* Sur grand écran, on utilise vraiment l'espace du bureau plutôt que de
    rester figé à 960px avec du vide de chaque côté. */
 @media (min-width: 1040px) {
@@ -89,7 +105,8 @@ header {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  margin-bottom: 1rem;
+  margin-bottom: 0.5rem;
+  flex: none;
 }
 header h1 {
   font-family: var(--disp);
@@ -116,18 +133,33 @@ header h1 span {
 }
 #btnMute:hover { border-color: var(--zone); }
 
+/* Zone flexible qui contient le plateau : fait tenir la mallette dans
+   TOUTE la hauteur restante (fenêtre entière visible, jamais de scroll de
+   page) — `container-type: size` expose sa taille réelle en `cqw`/`cqh` à
+   #stagewrap, qui calcule le plus petit des deux ratios pour ne jamais
+   déborder ni en largeur ni en hauteur (contain-fit, pas de distorsion). */
+#stagearea {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  container-type: size;
+  padding-top: 36px; /* réserve la place de la poignée de la mallette */
+}
+
 /* ---- « mallette de jeu » — le plateau posé dans un cadre de jouet, cf. DA ---- */
 #stagewrap {
   position: relative;
-  width: 100%;
   aspect-ratio: 960 / 600;
+  width: min(100cqw, 100cqh * 8 / 5);
+  height: min(100cqh, 100cqw * 5 / 8);
   border-radius: 20px;
   outline: 9px solid var(--zone);
   outline-offset: 5px;
   box-shadow:
     0 0 0 3px var(--panel-2),
     0 20px 56px rgba(4, 14, 30, 0.6);
-  margin: 30px 0 5px;
 }
 /* poignée de la mallette, posée sur le bord supérieur */
 #stagewrap::before {
@@ -941,10 +973,13 @@ kbd {
 
 /* ---- aide permanente sous le terrain ---- */
 .hint {
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   color: var(--muted);
-  line-height: 1.7;
-  margin: 0.9rem 0 0;
+  line-height: 1.5;
+  margin: 0.5rem 0 0;
+  flex: none;
+  max-height: 3.4em;
+  overflow: hidden;
 }
 .hint b {
   color: var(--ink);
