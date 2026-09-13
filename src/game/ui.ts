@@ -1,8 +1,6 @@
 import { createElement } from "react";
-import { HEROES, ROSTER } from "../engine/index";
 import type { HeroKind } from "../engine/index";
 import { hideOverlay, show, showReact } from "../ui/mount";
-import { ARCH_FR } from "../ui/labels";
 import { BanPickScreen } from "../ui/screens/BanPickScreen";
 import { CodexScreen } from "../ui/screens/CodexScreen";
 import { CurtainScreen } from "../ui/screens/CurtainScreen";
@@ -10,6 +8,7 @@ import { MenuScreen } from "../ui/screens/MenuScreen";
 import type { MenuChip } from "../ui/screens/MenuScreen";
 import { NameScreen } from "../ui/screens/NameScreen";
 import { NoticeScreen } from "../ui/screens/NoticeScreen";
+import { OnlineDraftScreen } from "../ui/screens/OnlineDraftScreen";
 import { ProfileScreen } from "../ui/screens/ProfileScreen";
 import type { HistoryRow, ProfileView } from "../ui/screens/ProfileScreen";
 import { ResultScreen } from "../ui/screens/ResultScreen";
@@ -74,19 +73,6 @@ export function menuScreen(
   );
 }
 
-/** Une carte du pool de draft — nom, archétype, phrase, ligne de capacité. */
-function poolCard(h: HeroKind, opts: { on?: boolean; locked?: boolean; badge?: number }): string {
-  const d = HEROES[h];
-  const cls = ["pcard", opts.on ? "on" : "", opts.locked ? "locked" : ""].join(" ").trim();
-  return `<button class="${cls}" data-h="${h}" ${opts.locked ? "disabled" : ""}>
-    ${opts.badge ? `<span class="pc-badge">${opts.badge}</span>` : ""}
-    <span class="pc-name">${d.name}</span>
-    <span class="pc-arch a-${d.archetype}">${ARCH_FR[d.archetype]}</span>
-    <span class="pc-blurb">${d.blurb}</span>
-    <span class="pc-kit"><kbd>A</kbd>${d.ability.name} · ${d.abilityCost}</span>
-  </button>`;
-}
-
 /**
  * Draft ban/pick pour les modes locaux (docs/PHASES.md P6, version hotseat/bot).
  * Chaque camp bannit 1 héros du pool commun, puis compose 3 héros parmi les
@@ -120,60 +106,7 @@ export function onlineDraftScreen(
   onPick: (team: HeroKind[]) => void,
   onCancel: () => void,
 ): void {
-  const picked: HeroKind[] = [];
-  let submitted = false;
-
-  const render = (): void => {
-    const head = phase === "ban" ? "Bannis un héros" : "Compose ton équipe";
-    const sub =
-      phase === "ban"
-        ? "Il sort de la sélection pour les deux camps."
-        : `Choisis 3 héros parmi les ${pool.length} restants.`;
-    const el = show(`
-      <div class="screen draft">
-        <h2>${head}</h2>
-        <p class="sub">${sub}</p>
-        ${phase === "pick" ? `<p class="sub">${picked.length}/3</p>` : ""}
-        <div class="pool">${pool
-          .map((h) =>
-            poolCard(h, {
-              on: picked.includes(h),
-              locked: submitted,
-              badge: phase === "pick" && picked.includes(h) ? picked.indexOf(h) + 1 : undefined,
-            }),
-          )
-          .join("")}</div>
-        ${phase === "pick" ? `<button class="cta" id="go" ${picked.length === 3 && !submitted ? "" : "disabled"}>Valider</button>` : ""}
-        ${submitted ? `<p class="sub">En attente de l'adversaire…</p>` : ""}
-        <button class="linkbtn" id="cancel">Annuler</button>
-      </div>
-    `);
-    if (!submitted) {
-      el.querySelectorAll<HTMLElement>(".pcard").forEach((c) => {
-        c.addEventListener("click", () => {
-          const h = c.dataset.h as HeroKind;
-          if (phase === "ban") {
-            submitted = true;
-            render();
-            onBan(h);
-            return;
-          }
-          const i = picked.indexOf(h);
-          if (i >= 0) picked.splice(i, 1);
-          else if (picked.length < 3) picked.push(h);
-          render();
-        });
-      });
-      el.querySelector("#go")?.addEventListener("click", () => {
-        if (picked.length !== 3) return;
-        submitted = true;
-        render();
-        onPick(picked);
-      });
-    }
-    el.querySelector("#cancel")!.addEventListener("click", onCancel);
-  };
-  render();
+  showReact(createElement(OnlineDraftScreen, { phase, pool, onBan, onPick, onCancel }));
 }
 
 /** Codex : les six fiches, dans les mots exacts de la barre d'action en match. */
