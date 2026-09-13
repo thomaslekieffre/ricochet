@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { HEROES, ROSTER } from "../../engine/index";
 import type { HeroKind } from "../../engine/index";
+import { HERO_PORTRAIT } from "../hero-portraits";
 import { ARCH_FR } from "../labels";
 
 export interface BanPickScreenProps {
@@ -73,12 +74,17 @@ function PoolCard({
   return (
     <button className={cls} disabled={locked} onClick={onClick}>
       {badge ? <span className="pc-badge">{badge}</span> : null}
-      <span className="pc-name">{d.name}</span>
-      <span className={`pc-arch a-${d.archetype}`}>{ARCH_FR[d.archetype]}</span>
-      <span className="pc-blurb">{d.blurb}</span>
-      <span className="pc-kit">
-        <kbd>A</kbd>
-        {d.ability.name} · {d.abilityCost}
+      <span className={`roster-medal a-${d.archetype} pc-portrait`}>
+        <img src={HERO_PORTRAIT[hero]} alt="" />
+      </span>
+      <span className="pc-body">
+        <span className="pc-name">{d.name}</span>
+        <span className={`pc-arch a-${d.archetype}`}>{ARCH_FR[d.archetype]}</span>
+        <span className="pc-blurb">{d.blurb}</span>
+        <span className="pc-kit">
+          <kbd>A</kbd>
+          {d.ability.name} · {d.abilityCost}
+        </span>
       </span>
     </button>
   );
@@ -102,14 +108,34 @@ function TeamPanel({
   return (
     <div className={`vteam ${sideCls} ${active ? "active" : ""}`}>
       <span className="vhead">{head}</span>
-      <span className={`vban ${ban ? "set" : ""}`}>{ban ? `banni : ${HEROES[ban].name}` : "aucun ban"}</span>
+      <span className={`vban ${ban ? "set" : ""}`}>
+        {ban ? (
+          <>
+            <span className={`roster-medal a-${HEROES[ban].archetype} vban-portrait`}>
+              <img src={HERO_PORTRAIT[ban]} alt="" />
+            </span>
+            banni : {HEROES[ban].name}
+          </>
+        ) : (
+          "aucun ban"
+        )}
+      </span>
       <ol className="vslots">
         {[0, 1, 2].map((i) => {
           const h = team[i];
           const filled = reveal && h;
           return (
             <li key={i} className={`vslot ${filled ? "set" : ""}`}>
-              {filled ? HEROES[h].name : ""}
+              {filled ? (
+                <>
+                  <span className={`roster-medal a-${HEROES[h].archetype} vslot-portrait`}>
+                    <img src={HERO_PORTRAIT[h]} alt="" />
+                  </span>
+                  {HEROES[h].name}
+                </>
+              ) : (
+                ""
+              )}
             </li>
           );
         })}
