@@ -366,7 +366,8 @@ canvas#stage {
 /* =====================================================================
    Écrans en surimpression
    ===================================================================== */
-#overlay {
+#overlay,
+#curtain {
   position: absolute;
   inset: 0;
   display: flex;

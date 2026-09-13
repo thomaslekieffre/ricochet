@@ -1,11 +1,15 @@
 import "./styles.css";
-import { App } from "./game/app";
+import { createRoot } from "react-dom/client";
+import { createElement } from "react";
+import { App } from "./game/App";
 import { isMuted, toggleMute } from "./game/audio";
 
 const canvas = document.getElementById("stage");
 if (!(canvas instanceof HTMLCanvasElement)) throw new Error("#stage introuvable");
 
-new App(canvas);
+const overlay = document.getElementById("overlay");
+if (!overlay) throw new Error("#overlay introuvable");
+createRoot(overlay).render(createElement(App, { canvas }));
 
 const mute = document.getElementById("btnMute");
 mute?.addEventListener("click", () => {

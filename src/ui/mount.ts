@@ -1,52 +1,40 @@
 /**
- * Propriétaire du DOM de `#overlay` — seul point qui bascule entre les
- * écrans « legacy » (chaîne HTML, `show()`) et les écrans React
- * (`showReact()`), pendant la migration incrémentale de src/game/ui.ts.
+ * Point de montage React dédié au rideau hotseat (`curtain()` dans
+ * `src/game/ui.ts`), affiché par-dessus le canvas pendant un match.
  *
- * Les deux modes ne doivent jamais se mélanger sur le même montage : basculer
- * de l'un à l'autre démonte toujours proprement l'arbre React actif avant de
- * réutiliser le conteneur, sinon React perd la trace du DOM qu'il croit gérer.
+ * C'est un root React séparé de celui de `App` (monté sur `#overlay`,
+ * cf. `src/main.tsx`) : `Match` (classe impérative, inchangée depuis
+ * l'étape 3 du plan de migration) appelle `curtain()` directement pendant
+ * la partie, hors du cycle de rendu d'`App` — les deux ne doivent jamais
+ * partager le même conteneur DOM, sous peine de voir un root React en
+ * démonter un autre par erreur.
  */
 import { createRoot, type Root } from "react-dom/client";
 import type { ReactElement } from "react";
 
-function overlayEl(): HTMLElement {
-  const el = document.getElementById("overlay");
-  if (!el) throw new Error("#overlay introuvable");
+function curtainEl(): HTMLElement {
+  const el = document.getElementById("curtain");
+  if (!el) throw new Error("#curtain introuvable");
   return el;
 }
 
 let activeRoot: Root | null = null;
 
-function unmountReact(): void {
-  if (activeRoot) {
-    activeRoot.unmount();
-    activeRoot = null;
-  }
-}
-
-/** Écran legacy (chaîne HTML) — remplace tout contenu précédent, React inclus. */
-export function show(html: string): HTMLElement {
-  unmountReact();
-  const el = overlayEl();
-  el.innerHTML = html;
-  el.hidden = false;
-  return el;
-}
-
-/** Écran React — remplace tout contenu précédent, HTML legacy inclus. */
-export function showReact(node: ReactElement): void {
-  unmountReact();
-  const el = overlayEl();
+export function showCurtain(node: ReactElement): void {
+  if (activeRoot) activeRoot.unmount();
+  const el = curtainEl();
   el.innerHTML = "";
   el.hidden = false;
   activeRoot = createRoot(el);
   activeRoot.render(node);
 }
 
-export function hideOverlay(): void {
-  unmountReact();
-  const el = overlayEl();
+export function hideCurtain(): void {
+  if (activeRoot) {
+    activeRoot.unmount();
+    activeRoot = null;
+  }
+  const el = curtainEl();
   el.innerHTML = "";
   el.hidden = true;
 }
