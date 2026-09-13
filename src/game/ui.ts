@@ -1,25 +1,18 @@
+import { createElement } from "react";
 import { HEROES, ROSTER } from "../engine/index";
 import type { HeroKind } from "../engine/index";
 import { isNameValid, sanitizeName } from "../lib/profile";
+import { hideOverlay, show, showReact } from "../ui/mount";
+import { ARCH_FR } from "../ui/labels";
+import { CodexScreen } from "../ui/screens/CodexScreen";
+import { CurtainScreen } from "../ui/screens/CurtainScreen";
+import { NoticeScreen } from "../ui/screens/NoticeScreen";
+import { SearchingScreen } from "../ui/screens/SearchingScreen";
+import { SpectateListScreen } from "../ui/screens/SpectateListScreen";
+import type { SpectateRow } from "../ui/screens/SpectateListScreen";
 
-const overlay = (): HTMLElement => {
-  const el = document.getElementById("overlay");
-  if (!el) throw new Error("#overlay introuvable");
-  return el;
-};
-
-export function hideOverlay(): void {
-  const el = overlay();
-  el.innerHTML = "";
-  el.hidden = true;
-}
-
-function show(html: string): HTMLElement {
-  const el = overlay();
-  el.innerHTML = html;
-  el.hidden = false;
-  return el;
-}
+export { hideOverlay };
+export type { SpectateRow };
 
 /** Échappe le texte fourni par le joueur (pseudo) avant injection HTML. */
 export function esc(s: string): string {
@@ -29,13 +22,6 @@ export function esc(s: string): string {
       ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!,
   );
 }
-
-const ARCH_FR: Record<string, string> = {
-  brawler: "Brawler",
-  dasher: "Dasher",
-  sniper: "Sniper",
-  mage: "Mage",
-};
 
 export interface StartOpts {
   mode: "bot" | "hotseat" | "online";
@@ -402,37 +388,14 @@ export function onlineDraftScreen(
 
 /** Codex : les six fiches, dans les mots exacts de la barre d'action en match. */
 export function codexScreen(onBack: () => void): void {
-  const cards = ROSTER.map((h) => {
-    const d = HEROES[h];
-    return `<div class="cx-card">
-      <div class="cx-top">
-        <span class="cx-name">${d.name}</span>
-        <span class="pc-arch a-${d.archetype}">${ARCH_FR[d.archetype]}</span>
-      </div>
-      <p class="cx-row"><span class="cx-tag">de base</span>${d.base}</p>
-      <p class="cx-row cx-ability">
-        <kbd>A</kbd><b>${d.ability.name}</b>
-        <span class="cx-acost">${d.abilityCost} Momentum</span>
-        <span class="cx-eff">${d.ability.effect}</span>
-      </p>
-      <p class="cx-row"><span class="cx-tag">passif</span>${d.passive.name} — ${d.passive.effect}</p>
-    </div>`;
-  }).join("");
-
-  const el = show(`
-    <div class="screen wide codex">
-      <h2>Les héros</h2>
-      <p class="sub">1 héros bouge par tour, puis se repose un tour avant de pouvoir
-        rejouer. Sa <b>capacité</b> se déclenche avec <kbd>A</kbd>
-        et coûte du Momentum : +1 par tour, plafond 5, tu démarres à 2.</p>
-      <div class="codex-grid">${cards}</div>
-      <button class="cta" id="back">Retour</button>
-    </div>
-  `);
-  el.querySelector("#back")!.addEventListener("click", () => {
-    hideOverlay();
-    onBack();
-  });
+  showReact(
+    createElement(CodexScreen, {
+      onBack: () => {
+        hideOverlay();
+        onBack();
+      },
+    }),
+  );
 }
 
 // ---- profil ----------------------------------------------------------
@@ -641,36 +604,26 @@ export function resultScreen(
 }
 
 export function curtain(text: string, onGo: () => void): void {
-  const el = show(`
-    <div class="screen curtain">
-      <p class="curtain-to">au tour de</p>
-      <h2>${text}</h2>
-      <button class="cta" id="c">Continuer</button>
-    </div>
-  `);
-  el.querySelector("#c")!.addEventListener("click", () => {
-    hideOverlay();
-    onGo();
-  });
+  showReact(
+    createElement(CurtainScreen, {
+      text,
+      onGo: () => {
+        hideOverlay();
+        onGo();
+      },
+    }),
+  );
 }
 
 export function searchingScreen(onCancel: () => void): void {
-  const el = show(`
-    <div class="screen">
-      <h2>Recherche d'un adversaire…</h2>
-      <p class="sub">On te place dès qu'un joueur est disponible.</p>
-      <button class="cta ghost" id="cancel">Annuler</button>
-    </div>
-  `);
-  el.querySelector("#cancel")!.addEventListener("click", () => {
-    hideOverlay();
-    onCancel();
-  });
-}
-
-export interface SpectateRow {
-  matchId: string;
-  label: string;
+  showReact(
+    createElement(SearchingScreen, {
+      onCancel: () => {
+        hideOverlay();
+        onCancel();
+      },
+    }),
+  );
 }
 
 /** Liste des matchs en direct (docs/PHASES.md P6). Rafraîchissable, lecture seule. */
@@ -680,30 +633,20 @@ export function spectateListScreen(
   onRefresh: () => void,
   onCancel: () => void,
 ): void {
-  const el = show(`
-    <div class="screen">
-      <h2>Matchs en direct</h2>
-      <p class="sub">${rows.length === 0 ? "Aucun match en cours pour l'instant." : "Choisis un match à suivre."}</p>
-      <div class="pool">${rows
-        .map((r) => `<button class="pcard" data-id="${esc(r.matchId)}">${esc(r.label)}</button>`)
-        .join("")}</div>
-      <div class="menu-foot">
-        <button class="linkbtn" id="refresh">Rafraîchir</button>
-        <button class="cta ghost" id="cancel">Retour</button>
-      </div>
-    </div>
-  `);
-  el.querySelectorAll<HTMLElement>(".pcard").forEach((c) => {
-    c.addEventListener("click", () => {
-      hideOverlay();
-      onWatch(c.dataset.id!);
-    });
-  });
-  el.querySelector("#refresh")!.addEventListener("click", onRefresh);
-  el.querySelector("#cancel")!.addEventListener("click", () => {
-    hideOverlay();
-    onCancel();
-  });
+  showReact(
+    createElement(SpectateListScreen, {
+      rows,
+      onWatch: (matchId: string) => {
+        hideOverlay();
+        onWatch(matchId);
+      },
+      onRefresh,
+      onCancel: () => {
+        hideOverlay();
+        onCancel();
+      },
+    }),
+  );
 }
 
 // ---- compte PocketBase (docs/PHASES.md P4) ----------------------------
@@ -824,15 +767,14 @@ export function accountScreen(
 }
 
 export function noticeScreen(title: string, sub: string, onOk: () => void): void {
-  const el = show(`
-    <div class="screen">
-      <h2>${title}</h2>
-      <p class="sub">${sub}</p>
-      <button class="cta" id="ok">Retour au menu</button>
-    </div>
-  `);
-  el.querySelector("#ok")!.addEventListener("click", () => {
-    hideOverlay();
-    onOk();
-  });
+  showReact(
+    createElement(NoticeScreen, {
+      title,
+      sub,
+      onOk: () => {
+        hideOverlay();
+        onOk();
+      },
+    }),
+  );
 }
