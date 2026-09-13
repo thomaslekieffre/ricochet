@@ -38,7 +38,15 @@ export type ClientMsg =
   | { t: "pick"; matchId: string; team: [HeroKind, HeroKind, HeroKind] }
   | { t: "order"; matchId: string; turn: number; order: Order }
   | { t: "ready"; matchId: string; turn: number }
-  | { t: "resync"; matchId: string }
+  /**
+   * Deux usages : `client.match` déjà attribué côté serveur (connexion jamais
+   * vraiment coupée) -> simple rafraîchissement, `seat`/`resumeToken` ignorés.
+   * Connexion WebSocket neuve après une vraie coupure (`client.match` reparti
+   * à `null`) -> `seat` + `resumeToken` (reçus dans `matched`) permettent de
+   * ré-attacher ce nouveau client au match toujours en grâce côté serveur
+   * (voir `Match.onDisconnect`/`Match.reattach`, docs/PHASES.md).
+   */
+  | { t: "resync"; matchId: string; seat?: 0 | 1; resumeToken?: string }
   | { t: "listMatches" }
   | { t: "spectate"; matchId: string }
   | { t: "ping"; n: number };
@@ -55,7 +63,15 @@ export type ServerMsg =
       pool: HeroKind[];
       deadlineMs: number;
     }
-  | { t: "matched"; matchId: string; seat: 0 | 1; state: GameState; deadlineMs: number }
+  | {
+      t: "matched";
+      matchId: string;
+      seat: 0 | 1;
+      state: GameState;
+      deadlineMs: number;
+      /** À renvoyer dans `resync` pour se ré-attacher au match après une vraie coupure réseau. */
+      resumeToken: string;
+    }
   | {
       t: "turn";
       turn: number;

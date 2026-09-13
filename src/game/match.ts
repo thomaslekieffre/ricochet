@@ -39,6 +39,8 @@ export interface NetBinding {
   client: NetClient;
   matchId: string;
   seat: 0 | 1;
+  /** Reçu dans `matched` — permet de se ré-attacher au match après une vraie coupure réseau. */
+  resumeToken: string;
 }
 
 export interface MatchOpts {
@@ -100,8 +102,10 @@ export class Match {
   private waitingCurtain = false;
   private botThinking = false;
   private awaitingServer = false;
+  private reconnectingNet = false;
   private lastPlayedTurn = -1;
   private netUnsub: (() => void) | null = null;
+  private netStatusUnsub: (() => void) | null = null;
   private disposed = false;
   private botClient: BotClient | null = null;
 
@@ -153,6 +157,7 @@ export class Match {
       });
     if (opts.net) {
       this.netUnsub = opts.net.client.on((m) => this.onNet(m));
+      this.netStatusUnsub = opts.net.client.onStatus((s) => this.onNetStatus(s));
     }
     this.bind();
     this.els.hud.hidden = false;
@@ -165,6 +170,7 @@ export class Match {
     cancelAnimationFrame(this.raf);
     this.botClient?.dispose();
     this.netUnsub?.();
+    this.netStatusUnsub?.();
     this.canvas.removeEventListener("pointerdown", this.onDown);
     this.canvas.removeEventListener("contextmenu", this.onContext);
     window.removeEventListener("pointermove", this.onMove);
@@ -383,6 +389,27 @@ export class Match {
     }
   }
 
+  /** Statut de connexion (pas un message du protocole) — cf. `NetClient.onStatus`. */
+  private onNetStatus(s: "reconnecting" | "reconnected"): void {
+    if (this.disposed) return;
+    if (s === "reconnecting") {
+      this.reconnectingNet = true;
+      return;
+    }
+    this.reconnectingNet = false;
+    // l'état courant peut être en retard (tour résolu côté serveur pendant la
+    // coupure) — `resync` renvoie l'état complet, traité comme le "state" reçu
+    // normalement en attente de tour (cf. case "state" ci-dessus).
+    if (this.opts.net) {
+      this.opts.net.client.send({
+        t: "resync",
+        matchId: this.opts.net.matchId,
+        seat: this.opts.net.seat,
+        resumeToken: this.opts.net.resumeToken,
+      });
+    }
+  }
+
   private finishTurn(): void {
     if (this.pending) this.state = this.pending;
     this.pending = null;
@@ -429,7 +456,8 @@ export class Match {
    *  moment du tir, sur le héros effectivement lancé. */
   private canArm(): boolean {
     if (this.phase !== "select" && this.phase !== "aim") return false;
-    if (this.botThinking || this.waitingCurtain || this.awaitingServer) return false;
+    if (this.botThinking || this.waitingCurtain || this.awaitingServer || this.reconnectingNet)
+      return false;
     return this.opts.net ? true : this.opts.sides[this.activeSide] === "human";
   }
 
@@ -452,7 +480,8 @@ export class Match {
   };
 
   private onDown = (e: PointerEvent): void => {
-    if (this.waitingCurtain || this.botThinking || this.awaitingServer) return;
+    if (this.waitingCurtain || this.botThinking || this.awaitingServer || this.reconnectingNet)
+      return;
     if (this.phase === "resolving" || this.phase === "over") return;
     // clic droit (button 2) = « ce lancer emporte la capacité »
     this.aimButton = e.button;
@@ -538,7 +567,8 @@ export class Match {
       this.frameIdx = this.frames.length;
       return;
     }
-    if (this.botThinking || this.waitingCurtain || this.awaitingServer) return;
+    if (this.botThinking || this.waitingCurtain || this.awaitingServer || this.reconnectingNet)
+      return;
     if (this.phase !== "select" && this.phase !== "aim") return;
     if (["1", "2", "3"].includes(e.key)) {
       const list = this.state.bodies.filter(
@@ -552,7 +582,8 @@ export class Match {
   };
 
   private onHoldClick = (): void => {
-    if (this.botThinking || this.waitingCurtain || this.awaitingServer) return;
+    if (this.botThinking || this.waitingCurtain || this.awaitingServer || this.reconnectingNet)
+      return;
     if (this.phase !== "select" && this.phase !== "aim") return;
     this.submitLocalOrder(HOLD_ORDER());
   };
@@ -566,7 +597,8 @@ export class Match {
       (this.phase === "select" || this.phase === "aim") &&
       !this.waitingCurtain &&
       !this.botThinking &&
-      !this.awaitingServer
+      !this.awaitingServer &&
+      !this.reconnectingNet
     ) {
       const left = PLAN_SECONDS - (performance.now() - this.timerStart) / 1000;
       if (left <= 0) {
@@ -686,7 +718,8 @@ export class Match {
 
     const rightAim = this.dragging && this.aimButton === 2;
     let prompt = "";
-    if (this.awaitingServer) prompt = "En attente de l'adversaire…";
+    if (this.reconnectingNet) prompt = "Connexion perdue — reconnexion en cours…";
+    else if (this.awaitingServer) prompt = "En attente de l'adversaire…";
     else if (this.phase === "resolving") prompt = "Résolution…";
     else if (this.waitingCurtain) prompt = "…";
     else if (!humanSide) prompt = "Le bot réfléchit…";
@@ -702,7 +735,8 @@ export class Match {
     const planning =
       (this.phase === "select" || this.phase === "aim") &&
       !this.waitingCurtain &&
-      !this.awaitingServer;
+      !this.awaitingServer &&
+      !this.reconnectingNet;
     const leftSec = PLAN_SECONDS - (performance.now() - this.timerStart) / 1000;
     const showTimer = humanSide && planning;
     this.els.timer.textContent = showTimer ? `${Math.max(0, Math.ceil(leftSec))}s` : "";

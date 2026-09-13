@@ -7,6 +7,7 @@
  * - No accounts, no persistence yet — that is Phase 4.
  */
 
+import { randomUUID } from "node:crypto";
 import { createServer, type Server } from "node:http";
 import { WebSocketServer, type WebSocket } from "ws";
 import { hashState, newMatch, resolve, ROSTER } from "../src/engine/index";
@@ -24,6 +25,8 @@ import {
 
 const TURN_DEADLINE_MS = 12_000;
 const ANIM_GRACE_MS = 9_000;
+/** Coupure réseau d'un joueur en match : délai avant forfait, le temps que son client se reconnecte. */
+const RECONNECT_GRACE_MS = 20_000;
 const DRAFT_BAN_MS = 15_000;
 const DRAFT_PICK_MS = 25_000;
 
@@ -295,6 +298,10 @@ class Match {
   private observers = new Set<Client>();
   private timer: NodeJS.Timeout | null = null;
   private closed = false;
+  /** Jetons de ré-attachement (un par siège), distribués dans `matched` — voir `reattach`. */
+  private readonly resumeTokens: [string, string] = [randomUUID(), randomUUID()];
+  /** Armé par `onDisconnect` le temps qu'une coupure réseau se résolve ; annulé par `reattach`. */
+  private disconnectTimers: [NodeJS.Timeout | null, NodeJS.Timeout | null] = [null, null];
   /** Tous les ordres joués, tour par tour — envoyé à `settle-match` pour rejeu (P4). */
   private orderLog: [Order, Order][] = [];
 
@@ -342,7 +349,14 @@ class Match {
     this.arm(TURN_DEADLINE_MS, () => this.resolveTurn());
     for (const c of this.seats) {
       if (first) {
-        send(c, { t: "matched", matchId: this.id, seat: c.seat, state: this.state, deadlineMs });
+        send(c, {
+          t: "matched",
+          matchId: this.id,
+          seat: c.seat,
+          state: this.state,
+          deadlineMs,
+          resumeToken: this.resumeTokens[c.seat],
+        });
       } else {
         send(c, { t: "state", matchId: this.id, state: this.state, turn: this.state.turn, deadlineMs });
       }
@@ -417,9 +431,36 @@ class Match {
     if (this.ready.size === 2) this.beginTurn();
   }
 
-  onLeave(c: Client): void {
+  /**
+   * WebSocket coupé pour ce siège — pas forcément un vrai départ (Wi-Fi qui
+   * lâche, tab en veille) : on arme un forfait différé plutôt que de couper
+   * le match tout de suite, pour laisser sa chance à `reattach` (client
+   * relancé par `NetClient`, cf. `src/net/client.ts`).
+   */
+  onDisconnect(c: Client): void {
+    if (this.closed || this.seats[c.seat] !== c) return;
+    if (this.disconnectTimers[c.seat]) clearTimeout(this.disconnectTimers[c.seat]!);
+    this.disconnectTimers[c.seat] = setTimeout(() => this.forfeit(c.seat), RECONNECT_GRACE_MS);
+  }
+
+  /** Nouvelle connexion WebSocket qui prétend reprendre `seat` avec son `resumeToken`. */
+  reattach(seat: 0 | 1, c: Client, token: string): void {
+    if (this.closed || token !== this.resumeTokens[seat]) return;
+    const timer = this.disconnectTimers[seat];
+    if (timer) {
+      clearTimeout(timer);
+      this.disconnectTimers[seat] = null;
+    }
+    c.seat = seat;
+    c.match = this;
+    this.seats[seat] = c;
+    this.resync(c);
+  }
+
+  /** Forfait effectif — soit un vrai départ (compat Draft-like), soit la grâce de reconnexion expirée. */
+  private forfeit(seat: 0 | 1): void {
     if (this.closed) return;
-    const other = this.seats[c.seat === 0 ? 1 : 0];
+    const other = this.seats[seat === 0 ? 1 : 0];
     send(other, { t: "opponentLeft", matchId: this.id });
     if (!this.state.over) {
       send(other, { t: "over", matchId: this.id, winner: other.seat });
@@ -468,6 +509,7 @@ class Match {
   private close(): void {
     this.closed = true;
     if (this.timer) clearTimeout(this.timer);
+    for (const t of this.disconnectTimers) if (t) clearTimeout(t);
     liveMatches.delete(this.id);
     for (const c of this.seats) c.match = null;
     for (const c of this.observers) c.spectating = null;
@@ -653,7 +695,11 @@ export function createMatchServer(port = DEFAULT_PORT): { http: Server; close: (
           client.match?.onReady(client.seat, msg.turn);
           break;
         case "resync":
-          client.match?.resync(client);
+          if (client.match) {
+            client.match.resync(client);
+          } else if (msg.seat !== undefined && msg.resumeToken) {
+            liveMatches.get(msg.matchId)?.reattach(msg.seat, client, msg.resumeToken);
+          }
           break;
         case "listMatches": {
           const matches: LiveMatchInfo[] = [...liveMatches.values()].map((m) => ({
@@ -680,7 +726,7 @@ export function createMatchServer(port = DEFAULT_PORT): { http: Server; close: (
       const i = waiting.indexOf(client);
       if (i >= 0) waiting.splice(i, 1);
       client.draft?.onLeave(client);
-      client.match?.onLeave(client);
+      client.match?.onDisconnect(client);
       client.spectating?.removeObserver(client);
     });
   });

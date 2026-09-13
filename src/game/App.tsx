@@ -445,7 +445,7 @@ export function App({ host, hud }: { host: HTMLElement; hud: HudEls }) {
       sides: seat === 0 ? ["human", "remote"] : ["remote", "human"],
       botLevel: 2,
       hud,
-      net: { client, matchId: matched.matchId, seat },
+      net: { client, matchId: matched.matchId, seat, resumeToken: matched.resumeToken },
       initialState: matched.state,
       onOver: (winner) => {
         netRef.current = null;
