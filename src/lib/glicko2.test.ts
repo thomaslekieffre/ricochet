@@ -6,6 +6,7 @@ import {
   settle1v1,
   softReset,
   tierOf,
+  tierRange,
   toDisplay,
   update,
 } from "./glicko2";
@@ -55,6 +56,12 @@ describe("glicko-2", () => {
     expect(tierOf(1300)).toBe("or");
     expect(tierOf(1900)).toBe("diamant");
     expect(tierOf(2500)).toBe("master");
+  });
+
+  it("tierRange donne le plancher/plafond du palier courant, master sans plafond", () => {
+    expect(tierRange(1300)).toEqual({ floor: 1200, ceiling: 1500 });
+    expect(tierRange(900)).toEqual({ floor: 900, ceiling: 1200 }); // pile au plancher d'Argent
+    expect(tierRange(2500)).toEqual({ floor: 2100, ceiling: null });
   });
 
   it("le soft reset rapproche de la moyenne sans tout effacer", () => {

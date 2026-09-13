@@ -208,6 +208,15 @@ export class App {
     const ratingLine = rv.placed
       ? `${rv.tierLabel} · ${rv.rating} (±${rv.rd})`
       : `Non classé · ${rv.placementLeft} partie${rv.placementLeft > 1 ? "s" : ""} avant classement`;
+    const tierGauge =
+      rv.placed && rv.nextTierLabel
+        ? {
+            pct: Math.round(rv.tierProgress * 100),
+            label: `${rv.tierPointsToNext} point${(rv.tierPointsToNext ?? 0) > 1 ? "s" : ""} vers ${rv.nextTierLabel}`,
+          }
+        : rv.placed
+          ? { pct: 100, label: "Palier maximal par note — l'Élite se joue au classement." }
+          : undefined;
 
     const history: HistoryRow[] = p.history.slice(0, 12).map((h) => {
       const lbl =
@@ -244,6 +253,7 @@ export class App {
         winrate: winrate(p),
         streakLabel,
         ratingLine,
+        tier: tierGauge,
         history,
       },
       () => this.toMenu(),

@@ -579,9 +579,9 @@ Anti-abandon (un `over` par forfait compte comme défaite) déjà géré par
 - File non classée fonctionnelle bout en bout. ✅
 - Matchmaking par note + bascule `mode: "ranked"`. ✅ (reste à vérifier la
   mise à jour Glicko-2 en vrai une fois une saison active seedée, P7)
-- Le serveur de match appelle `POST /api/settle-match` en fin de partie
-  (fait, `pocketbase/pb_hooks/settle-match.pb.js` — reste à brancher l'appel
-  côté `server/server.ts`).
+- Le serveur de match appelle `POST /api/settle-match` en fin de partie. ✅
+  (`server/server.ts` → `pocketbase/pb_hooks/settle-match.pb.js`, avec le
+  `mode` — `ranked` ou non — transmis ; vérifié en vrai en P5, cf. plus bas)
 
 ---
 
@@ -606,7 +606,8 @@ Anti-abandon (un `over` par forfait compte comme défaite) déjà géré par
   correctes (Glicko-2 vérifié), bascule de saison avec soft reset appliqué.
 
 **Reste (avec toi)** : écran de rang + jauge de palier, leaderboard Élite (top 500),
-brancher `settle-match` en mode `ranked`, cron de bascule de saison.
+cron de bascule de saison (le règlement `settle-match` en mode `ranked` est
+déjà branché et vérifié, cf. Phase 4 ci-dessus).
 
 ### Glicko-2 (τ = 0.5, échelle interne)
 

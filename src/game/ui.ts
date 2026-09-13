@@ -495,6 +495,8 @@ export interface ProfileView {
   winrate: number;
   streakLabel: string;
   ratingLine: string;
+  /** Jauge de progression dans le palier classé courant ; absente si non classé. */
+  tier?: { pct: number; label: string };
   history: HistoryRow[];
 }
 
@@ -529,6 +531,13 @@ export function profileScreen(
       </div>
       <p class="ratingline">${esc(v.ratingLine)}</p>
       <p class="sub">${v.xp} XP total${v.streakLabel ? ` · ${v.streakLabel}` : ""}</p>
+
+      ${
+        v.tier
+          ? `<div class="xpbar tierbar"><span data-fill="${v.tier.pct}" style="width:0"></span></div>
+      <p class="sub" style="margin:.35rem 0 1.1rem">${esc(v.tier.label)}</p>`
+          : ""
+      }
 
       <div class="xpbar"><span data-fill="${pct}" style="width:0"></span></div>
       <p class="sub" style="margin:.35rem 0 1.1rem">${v.into} / ${v.span} vers le niveau ${v.level + 1}</p>

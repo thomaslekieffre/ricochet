@@ -146,14 +146,34 @@ export type Tier =
   | "master"
   | "elite";
 
+/** Paliers classés par note plancher croissante — source unique pour `tierOf` et `tierRange`. */
+const TIER_FLOORS: Array<[Exclude<Tier, "elite">, number]> = [
+  ["bronze", 0],
+  ["argent", 900],
+  ["or", 1200],
+  ["platine", 1500],
+  ["diamant", 1800],
+  ["master", 2100],
+];
+
 /** Display rating → palier. `elite` (top 500) is decided by leaderboard rank, not here. */
 export function tierOf(rating: number): Tier {
-  if (rating < 900) return "bronze";
-  if (rating < 1200) return "argent";
-  if (rating < 1500) return "or";
-  if (rating < 1800) return "platine";
-  if (rating < 2100) return "diamant";
-  return "master";
+  let t: Exclude<Tier, "elite"> = "bronze";
+  for (const [tier, floor] of TIER_FLOORS) if (rating >= floor) t = tier;
+  return t;
+}
+
+/**
+ * Plancher/plafond de note du palier courant, pour une jauge de progression.
+ * `ceiling` est `null` pour master (pas de plafond par note — au-delà, seul le
+ * classement au leaderboard décide de l'Élite).
+ */
+export function tierRange(rating: number): { floor: number; ceiling: number | null } {
+  const idx = TIER_FLOORS.findIndex(([t]) => t === tierOf(rating));
+  return {
+    floor: TIER_FLOORS[idx]![1],
+    ceiling: idx + 1 < TIER_FLOORS.length ? TIER_FLOORS[idx + 1]![1] : null,
+  };
 }
 
 /** Soft reset between seasons: compress toward the mean, restore some uncertainty. */

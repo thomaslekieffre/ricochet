@@ -13,6 +13,7 @@ import {
   fromDisplay,
   settle1v1,
   tierOf,
+  tierRange,
   toDisplay,
 } from "./glicko2";
 import type { Rating, Tier } from "./glicko2";
@@ -272,6 +273,17 @@ export const TIER_LABEL: Record<Tier, string> = {
   elite: "Élite",
 };
 
+/** Palier suivant par note ; `null` pour master (au-dessus, seul le leaderboard décide de l'Élite). */
+const NEXT_TIER: Record<Tier, Tier | null> = {
+  bronze: "argent",
+  argent: "or",
+  or: "platine",
+  platine: "diamant",
+  diamant: "master",
+  master: null,
+  elite: null,
+};
+
 export function ratingView(p: Profile): {
   rating: number;
   rd: number;
@@ -279,16 +291,27 @@ export function ratingView(p: Profile): {
   tierLabel: string;
   placed: boolean;
   placementLeft: number;
+  /** Progression dans le palier courant, 0..1 ; 1 si pas de plafond (master). */
+  tierProgress: number;
+  /** Points de note restants avant le palier suivant ; `null` pour master (pas de palier au-dessus par note). */
+  tierPointsToNext: number | null;
+  nextTierLabel: string | null;
 } {
   const d = toDisplay(p.rating);
   const placed = p.ranked >= PLACEMENT_GAMES;
+  const tier = tierOf(d.rating);
+  const { floor, ceiling } = tierRange(d.rating);
+  const nextTier = NEXT_TIER[tier];
   return {
     rating: Math.round(d.rating),
     rd: Math.round(d.rd),
-    tier: tierOf(d.rating),
-    tierLabel: TIER_LABEL[tierOf(d.rating)],
+    tier,
+    tierLabel: TIER_LABEL[tier],
     placed,
     placementLeft: Math.max(0, PLACEMENT_GAMES - p.ranked),
+    tierProgress: ceiling === null ? 1 : Math.max(0, Math.min(1, (d.rating - floor) / (ceiling - floor))),
+    tierPointsToNext: ceiling === null ? null : Math.max(0, Math.round(ceiling - d.rating)),
+    nextTierLabel: nextTier ? TIER_LABEL[nextTier] : null,
   };
 }
 

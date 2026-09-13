@@ -737,6 +737,7 @@ kbd {
   background: var(--momentum);
   transition: width 0.55s cubic-bezier(0.3, 1, 0.4, 1);
 }
+.tierbar span { background: var(--zone); }
 
 .statrow { display: flex; justify-content: center; gap: 1.8rem; margin: 0.5rem 0 0.6rem; }
 .statrow div { display: flex; flex-direction: column; align-items: center; gap: 0.1rem; }
