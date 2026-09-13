@@ -292,6 +292,63 @@ qualité visuelle inégale entre héros (Boulder/Ram en rendu « figurine »
 plein, Sling/Arc en trait fin plus sobre) — pas retouché, pas bloquant pour
 la lisibilité en jeu.
 
+**Migration UI vers React (fait 2026-09-13)** — demande directe de Zoe
+(« il faut passer tout en react »), avec exigence de tests solides à chaque
+étape. Inverse la décision du 2026-09-11 (« aucune dépendance runtime hors
+rendu, pixi.js est la seule exception ») : react/react-dom en deviennent la
+deuxième, documentée dans `CLAUDE.md`. `src/engine/` et `src/net/` déjà
+100 % purs/DOM-free n'ont pas bougé — tout le chantier est resté dans
+`src/game/`/`src/ui/`. Fait en 6 étapes incrémentales, chacune commitée et
+testée en vrai dans le navigateur avant la suivante (plan détaillé conservé
+dans l'historique de session) :
+
+- Outillage (React 19 + plugin Vite, JSX) sans changement de comportement.
+- Les 16 écrans (`ui.ts`) migrés un par un vers `src/ui/screens/*.tsx`
+  (menu, profil, draft, compte, codex, spectate…), toujours montés depuis
+  `ui.ts` via `createRoot` le temps de la transition.
+- `App` (`app.ts`, classe impérative) remplacé par `App.tsx` (state machine
+  d'écrans en `useState`), `main.ts` → `main.tsx`.
+- Le HUD (`#hud`, réécrit à 60 fps — score, Momentum, timer, bandeau
+  d'action) devient une arborescence JSX (`MatchHud.tsx`) mais garde des
+  écritures impératives via `useRef` pour les champs à haute fréquence —
+  seul endroit du projet qui écrit dans le DOM hors du cycle de rendu React,
+  documenté comme tel.
+- `Match`/`ReplayPlayer`/`SpectateView` (boucle rAF + `Renderer` internes,
+  inchangés) encapsulés dans des composants wrapper
+  (`MatchSession`/`ReplaySession`/`SpectateSession`) construits/détruits par
+  un `useEffect` ; un `seq` incrémenté à chaque nouvelle session force React
+  à démonter proprement l'ancienne avant de monter la suivante même quand
+  `teardown()`+nouvelle session sont enchaînés dans le même appel
+  synchrone (sinon React réutilise l'instance en place et l'ancienne boucle
+  rAF continue de tourner en fond).
+- Nettoyage : code mort supprimé (`show()`/wrappers d'écrans de `ui.ts`,
+  `byId()` de `match.ts`, `animateBars()`, `esc()`), `<div id="root">` de
+  l'étape outillage retiré d'`index.html` (jamais utilisé — `App`/`MatchHud`
+  sont montés sur `#overlay`/`#hud` pour hériter du positionnement CSS
+  existant, dans des roots React séparés ; le rideau hotseat a son propre
+  `#curtain` pour la même raison, cf. `src/ui/mount.ts`).
+
+**Bug préexistant trouvé et corrigé au passage** (documenté depuis P2,
+jamais traité jusque-là) : cliquer « Rejouer » après un match plantait la
+création du `Renderer` suivant (`checkMaxIfStatementsInShader: 0`). Cause :
+la perte de contexte WebGL déclenchée par `app.destroy()` est asynchrone
+côté navigateur — recréer un contexte sur le même `<canvas>` juste après
+pouvait retomber sur un contexte encore « en cours de perte ». Fixé en
+donnant à `Renderer` la responsabilité de créer un `<canvas>` neuf à chaque
+construction (retiré à `dispose()`) au lieu de réutiliser un canvas
+partagé — un canvas neuf n'a jamais eu de contexte, donc plus de course
+possible.
+
+Testé en vrai à chaque étape (extension Chrome) : tous les écrans un par
+un, un match bot complet, un match hotseat complet avec rideau entre les
+tours, un replay chargé depuis un fichier, un spectate, et du matchmaking
+en ligne sur deux onglets — HUD miroir correct des deux côtés. Point
+critique vérifié en dernier : match bot → « Rejouer » → nouveau match,
+plantait systématiquement avant le fix ci-dessus, fonctionne maintenant
+(y compris un 3ᵉ match dans la même page). Zéro warning/erreur console sur
+l'ensemble. `npx tsc --noEmit`, `npm test`, `npm run check`, `npm run build`
+verts à chaque étape.
+
 ---
 
 ## Phase 3 — Serveur autoritatif (1v1 en ligne, sans compte) ✅

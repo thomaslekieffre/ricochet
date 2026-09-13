@@ -35,13 +35,18 @@ Regénérer la table de sinus figée (rare) : `node scripts/gen-trig-table.mjs`.
 
 ### Stack
 
-- **TypeScript strict** + **Vite** — pas de framework, rendu **PixiJS** (WebGL,
-  voir `docs/PHASES.md` P2 — remplace le Canvas 2D d'origine depuis le
+- **TypeScript strict** + **Vite**, rendu **PixiJS** (WebGL, voir
+  `docs/PHASES.md` P2 — remplace le Canvas 2D d'origine depuis le
   2026-09-11, décision prise pour des animations dignes d'un JV : squash &
-  stretch, particules, glow, silhouettes par archétype).
+  stretch, particules, glow, silhouettes par archétype), UI en **React 19**
+  (couche `src/game/`, `src/ui/` — migration complète du DOM impératif vers
+  React actée le 2026-09-13, cf. `docs/PHASES.md`).
 - **Vitest** pour les tests du moteur.
-- Aucune dépendance runtime **hors rendu** (pixi.js est la seule exception,
-  décision du 2026-09-11). Audio synthétisé (WebAudio). Premiers assets
+- Aucune dépendance runtime **hors rendu/UI** (pixi.js et react/react-dom
+  sont les deux seules exceptions, décisions du 2026-09-11 et du
+  2026-09-13). `src/engine/` et `src/net/` restent 100% purs, zéro DOM,
+  zéro React — la migration React ne les a jamais touchés. Audio synthétisé
+  (WebAudio). Premiers assets
   binaires du projet : `src/assets/heroes/*.png` (sprites générés, cf. P2,
   2026-09-11) — `sharp` en devDependency uniquement, pour le script de
   génération (`scripts/process-hero-sprites.mjs`), jamais au runtime.
@@ -73,12 +78,19 @@ src/
     client.ts        NetClient (wrapper WS navigateur)
   lib/
     glicko2.ts       notation classée (P5), + glicko2.test.ts (exemple de réf.)
-  game/              couche navigateur
+  game/              couche navigateur (React 19)
     audio.ts renderer.ts ui.ts
     match.ts         machine à états d'un match (local / hotseat / en ligne)
     replay.ts replay-player.ts   enregistrement + lecture déterministe (P6)
-    app.ts           enchaînement des écrans
-  main.ts  styles.css
+    App.tsx          racine React — state machine des écrans (remplace app.ts)
+    MatchHud.tsx     HUD en JSX, monté sur #hud (écritures 60fps en useRef)
+    MatchSession.tsx ReplaySession.tsx SpectateSession.tsx
+                     wrappers React (useEffect) autour de Match/ReplayPlayer/
+                     SpectateView, inchangés en interne (boucle rAF, Renderer)
+  ui/
+    mount.ts         montage du rideau hotseat sur son propre root (#curtain)
+    screens/*.tsx    les 16 écrans (menu, profil, draft, compte, codex…)
+  main.tsx  styles.css
 server/server.ts     serveur de match autoritatif (Node + ws) — P3
 scripts/             check.ts, net-test.ts, gen-trig-table.mjs
 pocketbase/          collections (P4/5/7) + hooks settle-match/rollover-season (non branché)
