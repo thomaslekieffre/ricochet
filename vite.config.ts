@@ -5,5 +5,15 @@ export default defineConfig({
   base: "./",
   plugins: [react()],
   server: { open: true, port: 5173 },
-  build: { target: "es2022" },
+  build: {
+    target: "es2022",
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          pixi: ["pixi.js"],
+          react: ["react", "react-dom"],
+        },
+      },
+    },
+  },
 });
