@@ -1,6 +1,8 @@
 import { createElement } from "react";
 import type { HeroKind } from "../engine/index";
-import { hideOverlay, show, showReact } from "../ui/mount";
+import { hideOverlay, showReact } from "../ui/mount";
+import { AccountScreen } from "../ui/screens/AccountScreen";
+import type { AccountUser } from "../ui/screens/AccountScreen";
 import { BanPickScreen } from "../ui/screens/BanPickScreen";
 import { CodexScreen } from "../ui/screens/CodexScreen";
 import { CurtainScreen } from "../ui/screens/CurtainScreen";
@@ -18,15 +20,6 @@ import type { SpectateRow } from "../ui/screens/SpectateListScreen";
 
 export { hideOverlay };
 export type { SpectateRow };
-
-/** Échappe le texte fourni par le joueur (pseudo) avant injection HTML. */
-export function esc(s: string): string {
-  return s.replace(
-    /[&<>"']/g,
-    (c) =>
-      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!,
-  );
-}
 
 export interface StartOpts {
   mode: "bot" | "hotseat" | "online";
@@ -255,17 +248,13 @@ export function spectateListScreen(
 
 // ---- compte PocketBase (docs/PHASES.md P4) ----------------------------
 
-export interface AccountUser {
-  email: string;
-  name: string;
-  account_xp: number;
-}
+export type { AccountUser };
 
 /**
  * Écran connexion / inscription / déconnexion contre PocketBase
- * (`src/net/session.ts`). Purement DOM, ne touche jamais l'API directement —
- * `onLogin`/`onRegister` font l'appel réseau et relancent l'écran en cas
- * d'erreur (message renvoyé par `AuthError`).
+ * (`src/net/session.ts`). Purement présentation, ne touche jamais l'API
+ * directement — `onLogin`/`onRegister` font l'appel réseau et l'écran
+ * affiche l'erreur en cas d'échec (message renvoyé par `AuthError`).
  */
 export function accountScreen(
   user: AccountUser | null,
@@ -274,100 +263,18 @@ export function accountScreen(
   onLogout: () => void,
   onBack: () => void,
 ): void {
-  let mode: "login" | "register" = "login";
-  let error = "";
-  let busy = false;
-
-  const render = (): void => {
-    if (user) {
-      const el = show(`
-        <div class="screen">
-          <h2>Ton compte</h2>
-          <p class="sub">Connecté en tant que <b>${esc(user.name || user.email)}</b></p>
-          <p class="sub">${esc(user.email)} · ${user.account_xp} XP de compte</p>
-          <div class="rowbtns" style="margin-top:1.1rem">
-            <button class="cta ghost danger" id="logout">Se déconnecter</button>
-          </div>
-          <button class="cta" id="back" style="margin-top:0.7rem">Retour</button>
-        </div>
-      `);
-      el.querySelector("#logout")!.addEventListener("click", () => {
-        onLogout();
-        user = null;
-        render();
-      });
-      el.querySelector("#back")!.addEventListener("click", () => {
+  showReact(
+    createElement(AccountScreen, {
+      user,
+      onLogin,
+      onRegister,
+      onLogout,
+      onBack: () => {
         hideOverlay();
         onBack();
-      });
-      return;
-    }
-
-    const el = show(`
-      <div class="screen">
-        <h2>${mode === "login" ? "Se connecter" : "Créer un compte"}</h2>
-        <p class="sub">Compte PocketBase — synchronise ta note classée entre navigateurs.
-          Jouer sans compte reste possible (bot, hotseat, en ligne non identifié).</p>
-        ${mode === "register" ? `<input id="aname" class="tin" maxlength="16" autocomplete="username" spellcheck="false" placeholder="Pseudo" />` : ""}
-        <input id="aemail" class="tin" type="email" autocomplete="email" spellcheck="false" placeholder="Email" style="margin-top:0.5rem" />
-        <input id="apass" class="tin" type="password" autocomplete="${mode === "login" ? "current-password" : "new-password"}" placeholder="Mot de passe" style="margin-top:0.5rem" />
-        <p class="sub err" id="aerr">${esc(error)}&nbsp;</p>
-        <div class="rowbtns">
-          <button class="cta" id="go" ${busy ? "disabled" : ""}>${busy ? "…" : mode === "login" ? "Se connecter" : "Créer le compte"}</button>
-          <button class="cta ghost" id="back">Retour</button>
-        </div>
-        <button class="linkbtn" id="swap" style="margin-top:0.9rem">${mode === "login" ? "Pas de compte ? En créer un" : "Déjà un compte ? Se connecter"}</button>
-      </div>
-    `);
-
-    const emailIn = el.querySelector<HTMLInputElement>("#aemail")!;
-    const passIn = el.querySelector<HTMLInputElement>("#apass")!;
-    const nameIn = el.querySelector<HTMLInputElement>("#aname");
-
-    const submit = async (): Promise<void> => {
-      const email = emailIn.value.trim();
-      const password = passIn.value;
-      if (!email || !password) {
-        error = "Email et mot de passe requis.";
-        render();
-        return;
-      }
-      busy = true;
-      error = "";
-      render();
-      try {
-        if (mode === "login") {
-          await onLogin(email, password);
-        } else {
-          const name = nameIn?.value.trim() || email.split("@")[0]!;
-          await onRegister(email, password, name);
-        }
-        hideOverlay();
-        onBack();
-      } catch (e) {
-        busy = false;
-        error = (e as Error).message || "Échec — vérifie tes identifiants.";
-        render();
-      }
-    };
-
-    el.querySelector("#go")!.addEventListener("click", () => void submit());
-    passIn.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") void submit();
-    });
-    el.querySelector("#swap")!.addEventListener("click", () => {
-      mode = mode === "login" ? "register" : "login";
-      error = "";
-      render();
-    });
-    el.querySelector("#back")!.addEventListener("click", () => {
-      hideOverlay();
-      onBack();
-    });
-    setTimeout(() => (nameIn ?? emailIn).focus(), 0);
-  };
-
-  render();
+      },
+    }),
+  );
 }
 
 export function noticeScreen(title: string, sub: string, onOk: () => void): void {
