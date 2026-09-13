@@ -1,11 +1,13 @@
 import { createElement } from "react";
 import { HEROES, ROSTER } from "../engine/index";
 import type { HeroKind } from "../engine/index";
-import { isNameValid, sanitizeName } from "../lib/profile";
 import { hideOverlay, show, showReact } from "../ui/mount";
 import { ARCH_FR } from "../ui/labels";
 import { CodexScreen } from "../ui/screens/CodexScreen";
 import { CurtainScreen } from "../ui/screens/CurtainScreen";
+import { MenuScreen } from "../ui/screens/MenuScreen";
+import type { MenuChip } from "../ui/screens/MenuScreen";
+import { NameScreen } from "../ui/screens/NameScreen";
 import { NoticeScreen } from "../ui/screens/NoticeScreen";
 import { SearchingScreen } from "../ui/screens/SearchingScreen";
 import { SpectateListScreen } from "../ui/screens/SpectateListScreen";
@@ -29,11 +31,7 @@ export interface StartOpts {
   arenaId: string;
 }
 
-export interface MenuChip {
-  name: string;
-  level: number;
-  line: string;
-}
+export type { MenuChip };
 
 // ---- menu : un lanceur, pas un formulaire -----------------------------
 
@@ -45,106 +43,31 @@ export function menuScreen(
   onCodex: () => void,
   onSpectate: () => void,
 ): void {
-  const el = show(`
-    <div class="screen menu">
-      ${
-        chip
-          ? `<button class="pchip" id="pchip" title="Ton profil">
-               <span class="pn">${esc(chip.name)}</span>
-               <span class="pl">Nv ${chip.level}</span>
-               <span class="pd">${esc(chip.line)}</span>
-             </button>`
-          : `<span class="pchip pchip-ghost">Ricochet</span>`
-      }
-
-      <div class="launch">
-        <button class="bigplay" id="play">Jouer</button>
-        <p class="launch-sub">Mode Contrôle — tiens la zone centrale, premier à 15</p>
-      </div>
-
-      <div class="setup">
-        <div class="opt">
-          <span class="lbl">Adversaire</span>
-          <div class="seg" data-group="mode">
-            <button data-v="bot" class="on">Bot</button>
-            <button data-v="hotseat">Hotseat</button>
-            <button data-v="online">En ligne</button>
-          </div>
-        </div>
-        <div class="opt" data-only="bot">
-          <span class="lbl">Niveau du bot</span>
-          <div class="seg" data-group="level">
-            <button data-v="1">Souple</button>
-            <button data-v="2" class="on">Correct</button>
-            <button data-v="3">Coriace</button>
-          </div>
-        </div>
-        <div class="opt">
-          <span class="lbl">Arène</span>
-          <div class="seg" data-group="arena">
-            <button data-v="carrefour" class="on">Carrefour</button>
-            <button data-v="fonderie">Fonderie</button>
-            <button data-v="flipper">Flipper</button>
-          </div>
-        </div>
-        <p class="note" data-only="online">
-          Il faut un serveur de match en route : <code>npm run server</code>.
-          L'arène choisie s'applique si tu es placé en siège&nbsp;1.
-        </p>
-      </div>
-
-      <div class="menu-foot">
-        <button class="linkbtn" id="codex">Voir les héros</button>
-        <button class="linkbtn" id="replay">Revoir un replay</button>
-        <button class="linkbtn" id="spectate">Regarder un match en direct</button>
-      </div>
-    </div>
-  `);
-
-  el.querySelector("#replay")!.addEventListener("click", () => {
-    hideOverlay();
-    onReplay();
-  });
-  el.querySelector("#codex")!.addEventListener("click", () => {
-    hideOverlay();
-    onCodex();
-  });
-  el.querySelector("#spectate")!.addEventListener("click", () => {
-    hideOverlay();
-    onSpectate();
-  });
-  el.querySelector("#pchip")?.addEventListener("click", () => {
-    hideOverlay();
-    onProfile();
-  });
-
-  const pick: Record<string, string> = { mode: "bot", level: "2", arena: "carrefour" };
-  const syncOnly = (): void => {
-    el.querySelectorAll<HTMLElement>("[data-only]").forEach((o) => {
-      o.hidden = o.dataset.only !== pick.mode;
-    });
-  };
-  el.querySelectorAll<HTMLElement>(".seg").forEach((seg) => {
-    const group = seg.dataset.group!;
-    seg.querySelectorAll("button").forEach((b) => {
-      b.addEventListener("click", () => {
-        seg.querySelectorAll("button").forEach((x) => x.classList.remove("on"));
-        b.classList.add("on");
-        pick[group] = b.dataset.v!;
-        syncOnly();
-      });
-    });
-  });
-  syncOnly();
-
-  el.querySelector("#play")!.addEventListener("click", () => {
-    hideOverlay();
-    onStart({
-      mode: pick.mode as StartOpts["mode"],
-      botLevel: Number(pick.level) as 1 | 2 | 3,
-      arenaId: pick.arena ?? "carrefour",
-    });
-  });
+  showReact(
+    createElement(MenuScreen, {
+      chip,
+      onStart: (o: StartOpts) => {
+        hideOverlay();
+        onStart(o);
+      },
+      onReplay: () => {
+        hideOverlay();
+        onReplay();
+      },
+      onProfile: () => {
+        hideOverlay();
+        onProfile();
+      },
+      onCodex: () => {
+        hideOverlay();
+        onCodex();
+      },
+      onSpectate: () => {
+        hideOverlay();
+        onSpectate();
+      },
+    }),
+  );
 }
 
 /** Une carte du pool de draft — nom, archétype, phrase, ligne de capacité. */
@@ -405,38 +328,21 @@ export function nameScreen(
   onDone: (name: string) => void,
   onCancel?: () => void,
 ): void {
-  const el = show(`
-    <div class="screen">
-      <h2>Ton pseudo</h2>
-      <p class="sub">3 à 16 caractères. Il identifie ton profil sur ce navigateur.</p>
-      <input id="pname" class="tin" maxlength="16" autocomplete="off"
-        spellcheck="false" value="${esc(initial)}" placeholder="ex. Zoe" />
-      <p class="sub err" id="perr">&nbsp;</p>
-      <div class="rowbtns">
-        <button class="cta" id="ok">Valider</button>
-        ${onCancel ? `<button class="cta ghost" id="cancel">Annuler</button>` : ""}
-      </div>
-    </div>
-  `);
-  const input = el.querySelector<HTMLInputElement>("#pname")!;
-  const err = el.querySelector("#perr")!;
-  const submit = (): void => {
-    if (!isNameValid(input.value)) {
-      err.textContent = "Entre un pseudo de 3 à 16 caractères.";
-      return;
-    }
-    hideOverlay();
-    onDone(sanitizeName(input.value));
-  };
-  input.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") submit();
-  });
-  el.querySelector("#ok")!.addEventListener("click", submit);
-  el.querySelector("#cancel")?.addEventListener("click", () => {
-    hideOverlay();
-    onCancel?.();
-  });
-  setTimeout(() => input.focus(), 0);
+  showReact(
+    createElement(NameScreen, {
+      initial,
+      onDone: (name: string) => {
+        hideOverlay();
+        onDone(name);
+      },
+      onCancel: onCancel
+        ? () => {
+            hideOverlay();
+            onCancel();
+          }
+        : undefined,
+    }),
+  );
 }
 
 export interface HistoryRow {
