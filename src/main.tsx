@@ -8,8 +8,8 @@ import { MatchHud } from "./game/MatchHud";
 import type { HudEls, HudRefs } from "./game/MatchHud";
 import { isMuted, toggleMute } from "./game/audio";
 
-const canvas = document.getElementById("stage");
-if (!(canvas instanceof HTMLCanvasElement)) throw new Error("#stage introuvable");
+const host = document.getElementById("stagehost");
+if (!host) throw new Error("#stagehost introuvable");
 
 // ---- HUD : root React séparé, monté sur #hud avant App (Match/ReplayPlayer/
 // SpectateView ont besoin des éléments réels dès leur construction) --------
@@ -83,7 +83,7 @@ const hud: HudEls = {
 // ---- App : state machine d'écrans, root React séparé sur #overlay --------
 const overlay = document.getElementById("overlay");
 if (!overlay) throw new Error("#overlay introuvable");
-createRoot(overlay).render(createElement(App, { canvas, hud }));
+createRoot(overlay).render(createElement(App, { host, hud }));
 
 const mute = document.getElementById("btnMute");
 mute?.addEventListener("click", () => {

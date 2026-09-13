@@ -273,9 +273,24 @@ export class Renderer {
     else tex.baseTexture.once("loaded", applySpriteSize);
   }
 
-  constructor(private canvas: HTMLCanvasElement) {
+  /** Le canvas WebGL, créé frais à chaque session (cf. commentaire de la classe). */
+  private readonly canvas: HTMLCanvasElement;
+
+  constructor(host: HTMLElement) {
+    // Un canvas neuf par session plutôt qu'un canvas partagé réutilisé : la
+    // perte de contexte WebGL déclenchée par `app.destroy()` est asynchrone
+    // côté navigateur, donc recréer un contexte sur le MÊME canvas juste
+    // après peut retomber sur un contexte encore "en cours de perte"
+    // (`checkMaxIfStatementsInShader` renvoie alors 0 — bug constaté en
+    // testant les étapes précédentes du plan de migration). Un canvas neuf
+    // n'a jamais eu de contexte : la création est toujours propre.
+    this.canvas = document.createElement("canvas");
+    this.canvas.id = "stage";
+    this.canvas.width = VIEW_W;
+    this.canvas.height = VIEW_H;
+    host.appendChild(this.canvas);
     this.app = new PIXI.Application({
-      view: canvas,
+      view: this.canvas,
       width: VIEW_W,
       height: VIEW_H,
       backgroundColor: FIELD,
@@ -308,9 +323,15 @@ export class Renderer {
     this.app.renderer.resize(VIEW_W, VIEW_H);
   }
 
+  /** Le canvas WebGL réellement créé (pour le binding d'événements côté appelant). */
+  get view(): HTMLCanvasElement {
+    return this.canvas;
+  }
+
   dispose(): void {
     window.removeEventListener("resize", this.onResize);
     this.app.destroy(false, { children: true, texture: true });
+    this.canvas.remove();
   }
 
   /** Pointer position (canvas CSS px) -> world fixed coordinates. */

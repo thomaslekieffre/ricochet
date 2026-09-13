@@ -30,13 +30,13 @@ export class SpectateView {
   private offNet: () => void;
 
   constructor(
-    canvas: HTMLCanvasElement,
+    host: HTMLElement,
     private client: NetClient,
     initialState: GameState,
     private onExit: () => void,
     private els: HudEls,
   ) {
-    this.r = new Renderer(canvas);
+    this.r = new Renderer(host);
     this.current = initialState;
 
     this.els.hud.hidden = false;

@@ -136,11 +136,14 @@ export class Match {
     return this.opts.hud;
   }
 
+  private canvas: HTMLCanvasElement;
+
   constructor(
-    private canvas: HTMLCanvasElement,
+    host: HTMLElement,
     private opts: MatchOpts,
   ) {
-    this.r = new Renderer(canvas);
+    this.r = new Renderer(host);
+    this.canvas = this.r.view;
     this.state =
       opts.initialState ??
       newMatch({

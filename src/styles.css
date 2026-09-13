@@ -95,6 +95,11 @@ header h1 span {
 
 #stagewrap { position: relative; width: 100%; aspect-ratio: 960 / 600; }
 
+/* Le canvas est créé dynamiquement (un par session, cf. renderer.ts) dans ce
+   conteneur plutôt que d'être une balise statique — même traitement que
+   #hud/#overlay/#curtain, tous montés sur des conteneurs dédiés. */
+#stagehost { position: absolute; inset: 0; }
+
 canvas#stage {
   display: block;
   width: 100%;

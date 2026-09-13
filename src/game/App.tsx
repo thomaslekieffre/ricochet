@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { HeroKind } from "../engine/index";
+import type { GameState, HeroKind } from "../engine/index";
 import { NetClient } from "../net/client";
 import type { ServerMsg } from "../net/protocol";
 import { Session } from "../net/session";
@@ -17,10 +17,12 @@ import {
 import type { Profile } from "../lib/profile";
 import { Match } from "./match";
 import type { MatchOpts } from "./match";
+import { MatchSession } from "./MatchSession";
 import type { HudEls } from "./MatchHud";
-import { ReplayPlayer } from "./replay-player";
+import { ReplaySession } from "./ReplaySession";
 import { downloadRecording, makeRecording, parseRecording } from "./replay";
-import { SpectateView } from "./spectate-view";
+import type { RecordedMatch } from "./replay";
+import { SpectateSession } from "./SpectateSession";
 import { AccountScreen } from "../ui/screens/AccountScreen";
 import type { AccountUser } from "../ui/screens/AccountScreen";
 import { BanPickScreen } from "../ui/screens/BanPickScreen";
@@ -94,31 +96,42 @@ type Screen =
       onCancel: () => void;
     };
 
-interface Sessions {
-  match: Match | null;
-  replay: ReplayPlayer | null;
-  spectate: SpectateView | null;
-  net: NetClient | null;
-}
+/**
+ * Une session canvas active (au plus une à la fois) : `Match`/`ReplayPlayer`/
+ * `SpectateView` restent des classes impératives (boucle `requestAnimationFrame`
+ * propre, inchangées) mais sont désormais construites/détruites via le cycle
+ * de vie React (`<MatchSession>`/`<ReplaySession>`/`<SpectateSession>`,
+ * `useEffect` de montage/nettoyage) plutôt qu'à la main dans les fonctions de
+ * transition — étape 5 du plan de migration.
+ */
+type SessionSpec =
+  | { kind: "match"; opts: MatchOpts }
+  | { kind: "replay"; rec: RecordedMatch; onExit: () => void }
+  | { kind: "spectate"; client: NetClient; initialState: GameState; onExit: () => void };
 
 /**
  * Racine React de l'appli (montée dans `#overlay`, cf. commentaire de montage
  * en bas de fichier) : porte la state machine d'écrans (menu/draft/résultat/
  * profil/...) et l'aiguillage vers les sessions de jeu.
- *
- * Les sessions canvas (`Match`/`ReplayPlayer`/`SpectateView`) restent des
- * classes impératives construites/détruites directement dans les fonctions
- * de transition (pas de useEffect de nettoyage) : elles possèdent leur propre
- * boucle de rendu et écrivent le HUD/canvas hors du DOM que React gère ici —
- * les transformer en composants avec cycle de vie React est le travail de
- * l'étape 5 du plan de migration, pas de celle-ci.
  */
-export function App({ canvas, hud }: { canvas: HTMLCanvasElement; hud: HudEls }) {
+export function App({ host, hud }: { host: HTMLElement; hud: HudEls }) {
   const [profile, setProfile] = useState<Profile | null>(() => loadProfile());
   const [screen, setScreen] = useState<Screen | null>(null);
+  const [session, setSession] = useState<{ seq: number; spec: SessionSpec } | null>(null);
   const profileRef = useRef(profile);
-  const sessions = useRef<Sessions>({ match: null, replay: null, spectate: null, net: null });
+  const sessionSeq = useRef(0);
+  const matchRef = useRef<Match | null>(null);
+  const netRef = useRef<NetClient | null>(null);
   const lastRef = useRef<{ opts: StartOpts; teamA: HeroKind[]; teamB: HeroKind[] } | null>(null);
+
+  // une nouvelle session = un nouveau `seq` -> un nouvel élément React (clé
+  // différente) -> React démonte proprement l'ancienne session (dispose())
+  // avant de monter la nouvelle, même si les deux setState sont enchaînés
+  // dans le même appel synchrone (teardown() puis startSession() plus bas).
+  function startSession(spec: SessionSpec): void {
+    sessionSeq.current += 1;
+    setSession({ seq: sessionSeq.current, spec });
+  }
 
   // synchrone : évite qu'un toMenu()/showProfile() enchaîné juste après lise
   // encore l'ancienne valeur (le useEffect qui suivrait `profile` n'aurait
@@ -155,14 +168,10 @@ export function App({ canvas, hud }: { canvas: HTMLCanvasElement; hud: HudEls })
   }, []);
 
   function teardown(): void {
-    sessions.current.match?.dispose();
-    sessions.current.match = null;
-    sessions.current.replay?.dispose();
-    sessions.current.replay = null;
-    sessions.current.spectate?.dispose();
-    sessions.current.spectate = null;
-    sessions.current.net?.close();
-    sessions.current.net = null;
+    setSession(null);
+    matchRef.current = null;
+    netRef.current?.close();
+    netRef.current = null;
   }
 
   function menuChipFor(p: Profile | null): MenuChip | null {
@@ -211,12 +220,12 @@ export function App({ canvas, hud }: { canvas: HTMLCanvasElement; hud: HudEls })
       hud,
       onOver: (winner) => onLocalOver(winner, opts.mode),
     };
-    sessions.current.match = new Match(canvas, mo);
+    startSession({ kind: "match", opts: mo });
     setScreen(null);
   }
 
   function onLocalOver(winner: 0 | 1, mode: StartOpts["mode"]): void {
-    const m = sessions.current.match;
+    const m = matchRef.current;
     const opts = lastRef.current?.opts;
     const won = winner === 0; // le profil local joue toujours le camp 0
     const score = m?.holdScore ?? [0, 0];
@@ -373,7 +382,7 @@ export function App({ canvas, hud }: { canvas: HTMLCanvasElement; hud: HudEls })
   function startOnline(o: StartOpts): void {
     teardown();
     const client = new NetClient();
-    sessions.current.net = client;
+    netRef.current = client;
     let matchId = "";
 
     const off = client.on((m: ServerMsg) => {
@@ -439,11 +448,11 @@ export function App({ canvas, hud }: { canvas: HTMLCanvasElement; hud: HudEls })
       net: { client, matchId: matched.matchId, seat },
       initialState: matched.state,
       onOver: (winner) => {
-        sessions.current.net = null;
+        netRef.current = null;
         client.close();
         // le serveur a appelé settle-match — resynchronise l'XP de compte si connecté
         void Session.refresh();
-        const score = sessions.current.match?.holdScore ?? [0, 0];
+        const score = matchRef.current?.holdScore ?? [0, 0];
         setScreen({
           kind: "result",
           title: winner === seat ? "Gagné" : "Perdu",
@@ -460,14 +469,14 @@ export function App({ canvas, hud }: { canvas: HTMLCanvasElement; hud: HudEls })
         setScreen({ kind: "notice", title: "Adversaire déconnecté", sub: "", onOk: () => toMenu() });
       },
     };
-    sessions.current.match = new Match(canvas, mo);
+    startSession({ kind: "match", opts: mo });
     setScreen(null);
   }
 
   // ---- replays ----------------------------------------------------
 
   function replayDownloader(winner: 0 | 1): (() => void) | undefined {
-    const m = sessions.current.match;
+    const m = matchRef.current;
     if (!m || m.log.length === 0) return undefined;
     const comps = m.teamComps;
     const arenaId = m.arenaId;
@@ -488,7 +497,7 @@ export function App({ canvas, hud }: { canvas: HTMLCanvasElement; hud: HudEls })
       try {
         const rec = parseRecording(await file.text());
         teardown();
-        sessions.current.replay = new ReplayPlayer(canvas, rec, () => toMenu(), hud);
+        startSession({ kind: "replay", rec, onExit: () => toMenu() });
         setScreen(null);
       } catch (e) {
         setScreen({
@@ -507,7 +516,7 @@ export function App({ canvas, hud }: { canvas: HTMLCanvasElement; hud: HudEls })
   function startSpectate(): void {
     teardown();
     const client = new NetClient();
-    sessions.current.net = client;
+    netRef.current = client;
     client
       .connect()
       .then(() => refreshSpectateList(client))
@@ -548,10 +557,15 @@ export function App({ canvas, hud }: { canvas: HTMLCanvasElement; hud: HudEls })
     const off = client.on((m: ServerMsg) => {
       if (m.t === "spectating" && m.matchId === matchId) {
         off();
-        sessions.current.spectate = new SpectateView(canvas, client, m.state, () => {
-          teardown();
-          toMenu();
-        }, hud);
+        startSession({
+          kind: "spectate",
+          client,
+          initialState: m.state,
+          onExit: () => {
+            teardown();
+            toMenu();
+          },
+        });
         setScreen(null);
       } else if (m.t === "error") {
         off();
@@ -564,8 +578,31 @@ export function App({ canvas, hud }: { canvas: HTMLCanvasElement; hud: HudEls })
 
   // ---- rendu ----------------------------------------------------
 
-  if (!screen) return null;
-  switch (screen.kind) {
+  function renderSession() {
+    if (!session) return null;
+    const { seq, spec } = session;
+    switch (spec.kind) {
+      case "match":
+        return <MatchSession key={seq} host={host} opts={spec.opts} onReady={(m) => (matchRef.current = m)} />;
+      case "replay":
+        return <ReplaySession key={seq} host={host} rec={spec.rec} hud={hud} onExit={spec.onExit} />;
+      case "spectate":
+        return (
+          <SpectateSession
+            key={seq}
+            host={host}
+            client={spec.client}
+            initialState={spec.initialState}
+            hud={hud}
+            onExit={spec.onExit}
+          />
+        );
+    }
+  }
+
+  function renderScreen() {
+    if (!screen) return null;
+    switch (screen.kind) {
     case "menu":
       return (
         <MenuScreen
@@ -639,5 +676,13 @@ export function App({ canvas, hud }: { canvas: HTMLCanvasElement; hud: HudEls })
           onCancel={screen.onCancel}
         />
       );
+    }
   }
+
+  return (
+    <>
+      {renderSession()}
+      {renderScreen()}
+    </>
+  );
 }

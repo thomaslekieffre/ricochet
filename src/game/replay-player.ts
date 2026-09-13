@@ -27,12 +27,12 @@ export class ReplayPlayer {
   private disposed = false;
 
   constructor(
-    canvas: HTMLCanvasElement,
+    host: HTMLElement,
     rec: RecordedMatch,
     private onExit: () => void,
     private els: HudEls,
   ) {
-    this.r = new Renderer(canvas);
+    this.r = new Renderer(host);
     let s = newMatch({
       teamA: rec.setup.teamA as never,
       teamB: rec.setup.teamB as never,
