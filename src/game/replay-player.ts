@@ -7,6 +7,7 @@
 
 import { newMatch, resolve } from "../engine/index";
 import type { Frame, GameState } from "../engine/index";
+import type { HudEls } from "./MatchHud";
 import { Renderer } from "./renderer";
 import type { RecordedMatch } from "./replay";
 
@@ -25,23 +26,11 @@ export class ReplayPlayer {
   private raf = 0;
   private disposed = false;
 
-  private els = {
-    hud: document.getElementById("hud")!,
-    hold0: document.getElementById("hold0")!,
-    hold1: document.getElementById("hold1")!,
-    mom0: document.getElementById("mom0")!,
-    mom1: document.getElementById("mom1")!,
-    turn: document.getElementById("turnlabel")!,
-    prompt: document.getElementById("prompt")!,
-    timer: document.getElementById("timer")!,
-    abilityWrap: document.getElementById("actionbar")!,
-    hold: document.getElementById("btnHold") as HTMLButtonElement,
-  };
-
   constructor(
     canvas: HTMLCanvasElement,
     rec: RecordedMatch,
     private onExit: () => void,
+    private els: HudEls,
   ) {
     this.r = new Renderer(canvas);
     let s = newMatch({
@@ -59,7 +48,7 @@ export class ReplayPlayer {
     this.final = s;
 
     this.els.hud.hidden = false;
-    this.els.abilityWrap.hidden = true;
+    this.els.actionbar.hidden = true;
     this.els.hold.textContent = "Quitter le replay";
     this.els.hold.addEventListener("click", this.exit);
     window.addEventListener("keydown", this.onKey);
@@ -72,7 +61,7 @@ export class ReplayPlayer {
     window.removeEventListener("keydown", this.onKey);
     this.els.hold.removeEventListener("click", this.exit);
     this.els.hold.textContent = "Passer le tour";
-    this.els.abilityWrap.hidden = false;
+    this.els.actionbar.hidden = false;
     this.els.hud.hidden = true;
     this.r.dispose();
   }

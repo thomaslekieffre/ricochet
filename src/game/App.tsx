@@ -17,6 +17,7 @@ import {
 import type { Profile } from "../lib/profile";
 import { Match } from "./match";
 import type { MatchOpts } from "./match";
+import type { HudEls } from "./MatchHud";
 import { ReplayPlayer } from "./replay-player";
 import { downloadRecording, makeRecording, parseRecording } from "./replay";
 import { SpectateView } from "./spectate-view";
@@ -112,7 +113,7 @@ interface Sessions {
  * les transformer en composants avec cycle de vie React est le travail de
  * l'étape 5 du plan de migration, pas de celle-ci.
  */
-export function App({ canvas }: { canvas: HTMLCanvasElement }) {
+export function App({ canvas, hud }: { canvas: HTMLCanvasElement; hud: HudEls }) {
   const [profile, setProfile] = useState<Profile | null>(() => loadProfile());
   const [screen, setScreen] = useState<Screen | null>(null);
   const profileRef = useRef(profile);
@@ -207,6 +208,7 @@ export function App({ canvas }: { canvas: HTMLCanvasElement }) {
       arenaId: opts.arenaId,
       sides: opts.mode === "hotseat" ? ["human", "human"] : ["human", "bot"],
       botLevel: opts.botLevel,
+      hud,
       onOver: (winner) => onLocalOver(winner, opts.mode),
     };
     sessions.current.match = new Match(canvas, mo);
@@ -433,6 +435,7 @@ export function App({ canvas }: { canvas: HTMLCanvasElement }) {
       arenaId: o.arenaId,
       sides: seat === 0 ? ["human", "remote"] : ["remote", "human"],
       botLevel: 2,
+      hud,
       net: { client, matchId: matched.matchId, seat },
       initialState: matched.state,
       onOver: (winner) => {
@@ -485,7 +488,7 @@ export function App({ canvas }: { canvas: HTMLCanvasElement }) {
       try {
         const rec = parseRecording(await file.text());
         teardown();
-        sessions.current.replay = new ReplayPlayer(canvas, rec, () => toMenu());
+        sessions.current.replay = new ReplayPlayer(canvas, rec, () => toMenu(), hud);
         setScreen(null);
       } catch (e) {
         setScreen({
@@ -548,7 +551,7 @@ export function App({ canvas }: { canvas: HTMLCanvasElement }) {
         sessions.current.spectate = new SpectateView(canvas, client, m.state, () => {
           teardown();
           toMenu();
-        });
+        }, hud);
         setScreen(null);
       } else if (m.t === "error") {
         off();

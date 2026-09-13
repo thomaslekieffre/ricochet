@@ -12,6 +12,7 @@ import type { NetClient } from "../net/client";
 import type { ServerMsg } from "../net/protocol";
 import { sfx } from "./audio";
 import { BotClient } from "./bot-client";
+import type { HudEls } from "./MatchHud";
 import { Renderer } from "./renderer";
 import type { CastFx, ShockFx } from "./renderer";
 import { curtain } from "./ui";
@@ -46,6 +47,7 @@ export interface MatchOpts {
   arenaId: string;
   sides: [Side, Side];
   botLevel: 1 | 2 | 3;
+  hud: HudEls;
   onOver: (winner: 0 | 1) => void;
   /** online play: authoritative server binding + the initial state it sent */
   net?: NetBinding;
@@ -129,31 +131,10 @@ export class Match {
     return [this.state.hold[0] ?? 0, this.state.hold[1] ?? 0];
   }
 
-  // HUD elements
-  private els = {
-    hud: byId("hud"),
-    whoA: byId("whoA"),
-    whoB: byId("whoB"),
-    hold0: byId("hold0"),
-    hold1: byId("hold1"),
-    mom0: byId("mom0"),
-    mom1: byId("mom1"),
-    turn: byId("turnlabel"),
-    prompt: byId("prompt"),
-    timer: byId("timer"),
-    timerbar: byId("timerbar"),
-    hold: byId("btnHold"),
-    abName: byId("abName"),
-    abArch: byId("abArch"),
-    abMom: byId("abMom"),
-    abKit: byId("abKit"),
-    abBase: byId("abBase"),
-    abActive: byId("abActive") as HTMLButtonElement,
-    abAName: byId("abAName"),
-    abAEffect: byId("abAEffect"),
-    abCost: byId("abCost"),
-    abHint: byId("abHint"),
-  };
+  /** Éléments du HUD (JSX, montés par `main.tsx` — cf. `MatchHud.tsx`). */
+  private get els(): HudEls {
+    return this.opts.hud;
+  }
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -802,10 +783,4 @@ export class Match {
       this.els.abHint.hidden = true;
     }
   }
-}
-
-function byId(id: string): HTMLElement {
-  const el = document.getElementById(id);
-  if (!el) throw new Error(`#${id} introuvable`);
-  return el;
 }
