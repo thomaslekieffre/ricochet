@@ -48,7 +48,25 @@ body {
   padding: 1.6rem 1rem 3rem;
 }
 
-#app { width: 100%; max-width: 960px; }
+#app { width: 100%; max-width: 960px; position: relative; z-index: 1; }
+
+/* ---- confettis de fond — clin d'œil « stand de fête foraine », décoratif pur ---- */
+.confetti { position: fixed; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
+.confetti span {
+  position: absolute;
+  width: 9px;
+  height: 16px;
+  border-radius: 2px;
+  opacity: 0.4;
+}
+.confetti span:nth-child(1) { top: 5%; left: 3%; background: var(--side-a); transform: rotate(20deg); }
+.confetti span:nth-child(2) { top: 16%; left: 95%; background: var(--side-b); transform: rotate(-18deg); }
+.confetti span:nth-child(3) { top: 2%; left: 45%; background: var(--zone); transform: rotate(8deg); }
+.confetti span:nth-child(4) { top: 40%; left: 2%; background: var(--momentum); transform: rotate(-30deg); }
+.confetti span:nth-child(5) { top: 55%; left: 97%; background: var(--side-a); transform: rotate(35deg); }
+.confetti span:nth-child(6) { top: 80%; left: 4%; background: var(--zone); transform: rotate(-12deg); }
+.confetti span:nth-child(7) { top: 88%; left: 92%; background: var(--momentum); transform: rotate(15deg); }
+.confetti span:nth-child(8) { top: 68%; left: 50%; background: var(--side-b); transform: rotate(-8deg); }
 
 button { font-family: inherit; }
 :focus-visible { outline: 2px solid var(--zone); outline-offset: 2px; border-radius: 2px; }
@@ -93,7 +111,32 @@ header h1 span {
 }
 #btnMute:hover { border-color: var(--zone); }
 
-#stagewrap { position: relative; width: 100%; aspect-ratio: 960 / 600; }
+/* ---- « mallette de jeu » — le plateau posé dans un cadre de jouet, cf. DA ---- */
+#stagewrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 960 / 600;
+  border-radius: 20px;
+  outline: 9px solid var(--zone);
+  outline-offset: 5px;
+  box-shadow:
+    0 0 0 3px var(--panel-2),
+    0 20px 56px rgba(4, 14, 30, 0.6);
+  margin: 30px 0 5px;
+}
+/* poignée de la mallette, posée sur le bord supérieur */
+#stagewrap::before {
+  content: "";
+  position: absolute;
+  top: -34px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 132px;
+  height: 26px;
+  background: var(--zone);
+  border-radius: 13px 13px 0 0;
+  box-shadow: 0 0 0 3px var(--panel-2);
+}
 
 /* Le canvas est créé dynamiquement (un par session, cf. renderer.ts) dans ce
    conteneur plutôt que d'être une balise statique — même traitement que
@@ -419,7 +462,7 @@ canvas#stage {
   letter-spacing: -0.01em;
   font-size: 1rem;
   padding: 0.72rem 1.6rem;
-  border-radius: 2px;
+  border-radius: 999px;
   cursor: pointer;
   box-shadow: 0 0 0 1px var(--side-a), 5px 5px 0 -1px rgba(214, 255, 59, 0.25);
   transition: transform 90ms ease, box-shadow 90ms ease, opacity 140ms ease;
@@ -460,7 +503,7 @@ canvas#stage {
   gap: 0.5rem;
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 2px;
+  border-radius: 999px;
   padding: 0.34rem 0.9rem;
   color: var(--ink);
   cursor: pointer;
@@ -473,6 +516,34 @@ canvas#stage {
 .pchip .pl { color: var(--momentum); font-size: 0.76rem; font-weight: 600; }
 .pchip .pd { color: var(--muted); font-size: 0.76rem; }
 
+/* bande de portraits décorative façon « roster » BUMP — purement cosmétique,
+   aucune sélection n'a lieu ici (le choix se fait au draft, après « Jouer »). */
+.roster-strip {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1.1rem;
+}
+.roster-medal {
+  width: 52px;
+  height: 52px;
+  border-radius: 999px;
+  background: var(--panel);
+  border: 3px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  box-shadow: 0 4px 0 rgba(4, 14, 30, 0.35);
+}
+.roster-medal img { width: 82%; height: 82%; object-fit: contain; }
+.roster-medal.a-brawler { border-color: var(--momentum); }
+.roster-medal.a-dasher { border-color: var(--zone); }
+.roster-medal.a-sniper { border-color: var(--side-b); }
+.roster-medal.a-mage { border-color: var(--side-a); }
+.cx-portrait { width: 34px; height: 34px; border-width: 2px; flex: none; }
+
 .launch { display: flex; flex-direction: column; align-items: center; gap: 0.6rem; margin-bottom: 2rem; }
 .bigplay {
   font-family: var(--disp);
@@ -483,9 +554,9 @@ canvas#stage {
   color: var(--on-a);
   background: var(--side-a);
   border: none;
-  border-radius: 3px;
   padding: 0.5rem 2.2rem 0.65rem;
   cursor: pointer;
+  border-radius: 999px;
   box-shadow: 0 0 0 1px var(--side-a), 10px 10px 0 -1px rgba(214, 255, 59, 0.28);
   transition: transform 100ms ease, box-shadow 100ms ease;
 }
@@ -514,7 +585,7 @@ canvas#stage {
   font: inherit;
   font-size: 0.84rem;
   padding: 0.36rem 0.72rem;
-  border-radius: 2px;
+  border-radius: 10px;
   cursor: pointer;
 }
 .seg button:hover { border-color: var(--zone); color: var(--ink); }

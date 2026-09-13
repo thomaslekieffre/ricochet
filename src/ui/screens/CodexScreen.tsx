@@ -1,4 +1,5 @@
 import { HEROES, ROSTER } from "../../engine/index";
+import { HERO_PORTRAIT } from "../hero-portraits";
 import { ARCH_FR } from "../labels";
 
 export interface CodexScreenProps {
@@ -19,6 +20,9 @@ export function CodexScreen({ onBack }: CodexScreenProps) {
           return (
             <div className="cx-card" key={h}>
               <div className="cx-top">
+                <span className={`roster-medal a-${d.archetype} cx-portrait`}>
+                  <img src={HERO_PORTRAIT[h]} alt="" />
+                </span>
                 <span className="cx-name">{d.name}</span>
                 <span className={`pc-arch a-${d.archetype}`}>{ARCH_FR[d.archetype]}</span>
               </div>

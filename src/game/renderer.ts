@@ -45,9 +45,13 @@ const INK = 0xeef3ff;
 const VOID = 0x0a1f3d; // contour sombre du texte
 const GOLD = 0xffb020; // Momentum / capacités
 const HAZARD = 0x22d3c5; // géométrie d'arène : murs, bumpers, tapis
-const FIELD = 0x0b2343;
-const FIELD_CENTER = 0x123e73;
-const FIELD_EDGE = 0x2b5a92;
+// Le terrain lui-même est un tapis chaud (table de jeu physique, cf. BUMP!
+// Superbrawl) — contraste volontaire avec le cobalt sombre du reste de
+// l'appli (menus, fond) : à l'intérieur de la mallette (#stagewrap), on est
+// posé sur une vraie table de jeu éclairée, pas dans le même bleu nuit.
+const FIELD = 0xdba75a;
+const FIELD_CENTER = 0xf3d998;
+const FIELD_EDGE = 0x7a4a20;
 
 const GLYPH: Record<HeroKind, string> = {
   boulder: "B",
@@ -227,6 +231,9 @@ export class Renderer {
   private root = new PIXI.Container();
   private fieldG = new PIXI.Graphics();
   private zoneG = new PIXI.Graphics();
+  // marqueur de zone façon "jeton physique" (cf. BUMP! Superbrawl) — posé une
+  // fois en enfant de zoneG, `zoneG.clear()` ne retire pas les enfants.
+  private zoneMarker = new PIXI.Text("💀", { fontSize: 26 });
   private wallsG = new PIXI.Graphics();
   private pulsesG = new PIXI.Graphics();
   private trailsG = new PIXI.Graphics(); // trainées des projectiles
@@ -291,6 +298,8 @@ export class Renderer {
     this.canvas.width = VIEW_W;
     this.canvas.height = VIEW_H;
     host.appendChild(this.canvas);
+    this.zoneMarker.anchor.set(0.5);
+    this.zoneG.addChild(this.zoneMarker);
     this.app = new PIXI.Application({
       view: this.canvas,
       width: VIEW_W,
@@ -420,9 +429,9 @@ export class Renderer {
       g.drawCircle(VIEW_W / 2, VIEW_H / 2, rr);
       g.endFill();
     }
-    g.lineStyle(3, FIELD_EDGE, 1);
-    g.drawRect(2, 2, VIEW_W - 4, VIEW_H - 4);
-    g.lineStyle(1, INK, 0.06);
+    g.lineStyle(6, FIELD_EDGE, 1);
+    g.drawRect(3, 3, VIEW_W - 6, VIEW_H - 6);
+    g.lineStyle(1, FIELD_EDGE, 0.18);
     g.moveTo(VIEW_W / 2, 20);
     g.lineTo(VIEW_W / 2, VIEW_H - 20);
 
@@ -451,6 +460,9 @@ export class Renderer {
     g.drawCircle(sx(z.x), sx(z.y), sc(fx.toFloat(z.r)));
     g.endFill();
     dashedCircle(g, sx(z.x), sx(z.y), sc(fx.toFloat(z.r)), 3, ctrl === -1 ? HAZARD : fillCol, ctrl === -1 ? 0.7 : 1, 8, 8);
+    this.zoneMarker.x = sx(z.x);
+    this.zoneMarker.y = sx(z.y);
+    this.zoneMarker.alpha = ctrl === -1 ? 0.5 : 0.85;
   }
 
   private liveControl(s: GameState): -1 | 0 | 1 {

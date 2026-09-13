@@ -1,5 +1,7 @@
 import { useState } from "react";
+import { HEROES, ROSTER } from "../../engine/index";
 import type { StartOpts } from "../../game/ui";
+import { HERO_PORTRAIT } from "../hero-portraits";
 
 export interface MenuChip {
   name: string;
@@ -46,6 +48,14 @@ export function MenuScreen({
       ) : (
         <span className="pchip pchip-ghost">Ricochet</span>
       )}
+
+      <div className="roster-strip" aria-hidden="true">
+        {ROSTER.map((h) => (
+          <span key={h} className={`roster-medal a-${HEROES[h].archetype}`} title={HEROES[h].name}>
+            <img src={HERO_PORTRAIT[h]} alt="" />
+          </span>
+        ))}
+      </div>
 
       <div className="launch">
         <button className="bigplay" onClick={() => onStart({ mode, botLevel, arenaId })}>
