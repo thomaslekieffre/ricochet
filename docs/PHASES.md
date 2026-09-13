@@ -202,6 +202,37 @@ touché/KO restent à générer (prompts prêts, cf. session : variante du promp
 Boulder avec « sleek lean agile dasher character », « narrow diamond-shaped
 streamlined body », trait de mouvement coupé net).
 
+**Comet encore bloqué (2026-09-13, tentative de reprise)** : quota ZeroGPU
+du compte HF toujours épuisé (« You've hit your daily ZeroGPU limit », modal
+d'incitation PRO) dès la première tentative — trop tôt après le dernier
+cycle. Rien généré. Les deux prompts définitifs (variante du prompt Boulder
+« touché » ci-dessus, adaptée au dasher) sont figés ici pour la prochaine
+tentative, à coller tels quels sur
+`https://huggingface.co/spaces/black-forest-labs/FLUX.1-schnell` :
+
+> **Comet touché** : flat 2D vector game icon, full body sleek lean agile
+> dasher character flinching backward from a hit mid-dash, narrow
+> diamond-shaped streamlined body, leaning back off balance, one arm raised
+> defensively, short motion trail behind cut off abruptly, bold thick black
+> outline, single flat solid light grey silhouette fill, no shading, no
+> gradient, no 3D render, minimalist esports mascot style, plain solid pure
+> white background, centered, no text
+
+> **Comet KO** : flat 2D vector game icon, full body sleek lean agile dasher
+> character collapsed flat on the ground knocked out, narrow diamond-shaped
+> streamlined body sprawled horizontally, motion trail cut off abruptly
+> beside it, bold thick black outline, single flat solid light grey
+> silhouette fill, no shading, no gradient, no 3D render, minimalist esports
+> mascot style, plain solid pure white background, centered, no text
+
+Pipeline inchangé une fois les 2 images obtenues : télécharger les `.webp`
+dans `src/assets/heroes/` sous `comet_hit.webp`/`comet_ko.webp`, lancer
+`node scripts/process-hero-sprites.mjs` (détourage + conversion PNG),
+ajouter les imports + entrée `comet: {idle, hit, ko}` dans `SPRITE_URL`
+(`src/game/renderer.ts`), vérifier `tsc`/`test`/`check`/`build`, puis
+confirmer en vrai (match Comet vs Comet, choc + KO + respawn) avant de
+commit.
+
 Intégration réalisée exactement comme prévu ci-dessus, avec un ajustement :
 `heroTexture()` est devenu `heroTexture(hero, variant)` avec cache par
 `${hero}:${url}`, et un nouveau `setBodySprite(bv, tex, r)` factorise le
