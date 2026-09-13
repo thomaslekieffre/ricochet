@@ -3,6 +3,7 @@ import { HEROES, ROSTER } from "../engine/index";
 import type { HeroKind } from "../engine/index";
 import { hideOverlay, show, showReact } from "../ui/mount";
 import { ARCH_FR } from "../ui/labels";
+import { BanPickScreen } from "../ui/screens/BanPickScreen";
 import { CodexScreen } from "../ui/screens/CodexScreen";
 import { CurtainScreen } from "../ui/screens/CurtainScreen";
 import { MenuScreen } from "../ui/screens/MenuScreen";
@@ -86,29 +87,6 @@ function poolCard(h: HeroKind, opts: { on?: boolean; locked?: boolean; badge?: n
   </button>`;
 }
 
-/** Le panneau d'un camp dans le tableau de draft. */
-function teamPanel(
-  sideCls: "a" | "b",
-  head: string,
-  ban: HeroKind | null,
-  team: HeroKind[],
-  reveal: boolean,
-  active: boolean,
-): string {
-  const slots = [0, 1, 2]
-    .map((i) => {
-      const h = team[i];
-      const filled = reveal && h;
-      return `<li class="vslot ${filled ? "set" : ""}">${filled ? HEROES[h!].name : ""}</li>`;
-    })
-    .join("");
-  return `<div class="vteam ${sideCls} ${active ? "active" : ""}">
-    <span class="vhead">${head}</span>
-    <span class="vban ${ban ? "set" : ""}">${ban ? `banni : ${HEROES[ban].name}` : "aucun ban"}</span>
-    <ol class="vslots">${slots}</ol>
-  </div>`;
-}
-
 /**
  * Draft ban/pick pour les modes locaux (docs/PHASES.md P6, version hotseat/bot).
  * Chaque camp bannit 1 héros du pool commun, puis compose 3 héros parmi les
@@ -118,129 +96,15 @@ export function banPickScreen(
   hotseat: boolean,
   onDone: (teamA: HeroKind[], teamB: HeroKind[]) => void,
 ): void {
-  const bans: [HeroKind | null, HeroKind | null] = [null, null];
-  const teams: [HeroKind[], HeroKind[]] = [[], []];
-  const sideName = (s: 0 | 1): string =>
-    hotseat ? `Joueur ${s + 1}` : s === 0 ? "Toi" : "Bot";
-  const alive = (): HeroKind[] => ROSTER.filter((h) => h !== bans[0] && h !== bans[1]);
-  const pickRandom = <T,>(xs: T[]): T => xs[Math.floor(Math.random() * xs.length)]!;
-
-  const botCompo = (): HeroKind[] => {
-    const pool = alive().slice();
-    for (let i = pool.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [pool[i], pool[j]] = [pool[j]!, pool[i]!];
-    }
-    return pool.slice(0, 3);
-  };
-
-  type Step = "ban0" | "ban1" | "pick0" | "pick1";
-  const STEPS: Step[] = ["ban0", "ban1", "pick0", "pick1"];
-
-  const finish = (): void => {
-    hideOverlay();
-    onDone(teams[0], teams[1]);
-  };
-
-  const advance = (step: Step): void => {
-    if (step === "ban0") render("ban1");
-    else if (step === "ban1") render("pick0");
-    else if (step === "pick0") render("pick1");
-    else finish();
-  };
-
-  const render = (step: Step): void => {
-    // le bot joue ses étapes tout seul
-    if (!hotseat && step === "ban1") {
-      bans[1] = pickRandom(ROSTER.filter((h) => h !== bans[0]));
-      render("pick0");
-      return;
-    }
-    if (!hotseat && step === "pick1") {
-      teams[1] = botCompo();
-      finish();
-      return;
-    }
-
-    const side: 0 | 1 = step === "ban0" || step === "pick0" ? 0 : 1;
-    const isBan = step === "ban0" || step === "ban1";
-    const cur = teams[side];
-    const otherBan = bans[side === 0 ? 1 : 0];
-    const isLocked = (h: HeroKind): boolean =>
-      isBan ? h === otherBan : h === bans[0] || h === bans[1];
-
-    const title = isBan
-      ? `${sideName(side)} — bannis un héros`
-      : `${sideName(side)} — ta compo`;
-    const sub = isBan
-      ? "Il sort de la sélection pour les deux camps."
-      : `Choisis 3 héros parmi les 4 restants. <span id="count">${cur.length}/3</span>`;
-
-    const stepTrack = STEPS.map((s) => {
-      const done = STEPS.indexOf(s) < STEPS.indexOf(step);
-      const now = s === step;
-      const lbl = s.startsWith("ban") ? "Ban" : "Compo";
-      return `<i class="ds ${done ? "done" : ""} ${now ? "on" : ""}">${lbl}</i>`;
-    }).join("");
-
-    // révèle une compo seulement si elle est bouclée ou si c'est le camp actif
-    const revealA = teams[0].length === 3 || side === 0;
-    const revealB = teams[1].length === 3 || side === 1;
-
-    const cards = ROSTER.map((h) => {
-      const locked = isLocked(h);
-      const on = isBan ? h === bans[side] : cur.includes(h);
-      const badge = !isBan && cur.includes(h) ? cur.indexOf(h) + 1 : undefined;
-      return poolCard(h, { on, locked, badge });
-    }).join("");
-
-    const ready = isBan ? bans[side] !== null : cur.length === 3;
-    const nextLabel = isBan
-      ? hotseat && step === "ban0"
-        ? "Ban du Joueur 2"
-        : "Passer aux compos"
-      : hotseat && step === "pick0"
-        ? "Au Joueur 2"
-        : "Lancer le match";
-
-    const el = show(`
-      <div class="screen draft">
-        <div class="draft-steps">${stepTrack}</div>
-        <h2>${title}</h2>
-        <p class="sub">${sub}</p>
-
-        <div class="versus">
-          ${teamPanel("a", sideName(0), bans[0], teams[0], revealA, side === 0)}
-          <span class="vs">vs</span>
-          ${teamPanel("b", sideName(1), bans[1], teams[1], revealB, side === 1)}
-        </div>
-
-        <div class="pool">${cards}</div>
-        <button class="cta" id="go" ${ready ? "" : "disabled"}>${nextLabel}</button>
-      </div>
-    `);
-
-    el.querySelectorAll<HTMLElement>(".pcard").forEach((c) => {
-      if (c.hasAttribute("disabled")) return;
-      c.addEventListener("click", () => {
-        const h = c.dataset.h as HeroKind;
-        if (isBan) {
-          bans[side] = h;
-        } else {
-          const i = cur.indexOf(h);
-          if (i >= 0) cur.splice(i, 1);
-          else if (cur.length < 3) cur.push(h);
-        }
-        render(step);
-      });
-    });
-    el.querySelector("#go")!.addEventListener("click", () => {
-      if (isBan ? bans[side] === null : cur.length !== 3) return;
-      advance(step);
-    });
-  };
-
-  render("ban0");
+  showReact(
+    createElement(BanPickScreen, {
+      hotseat,
+      onDone: (teamA: HeroKind[], teamB: HeroKind[]) => {
+        hideOverlay();
+        onDone(teamA, teamB);
+      },
+    }),
+  );
 }
 
 /**
