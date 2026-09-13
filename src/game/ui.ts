@@ -9,6 +9,8 @@ import { MenuScreen } from "../ui/screens/MenuScreen";
 import type { MenuChip } from "../ui/screens/MenuScreen";
 import { NameScreen } from "../ui/screens/NameScreen";
 import { NoticeScreen } from "../ui/screens/NoticeScreen";
+import { ProfileScreen } from "../ui/screens/ProfileScreen";
+import type { HistoryRow, ProfileView } from "../ui/screens/ProfileScreen";
 import { SearchingScreen } from "../ui/screens/SearchingScreen";
 import { SpectateListScreen } from "../ui/screens/SpectateListScreen";
 import type { SpectateRow } from "../ui/screens/SpectateListScreen";
@@ -345,29 +347,7 @@ export function nameScreen(
   );
 }
 
-export interface HistoryRow {
-  won: boolean;
-  label: string;
-  score: string;
-  delta: string;
-}
-
-export interface ProfileView {
-  name: string;
-  level: number;
-  into: number;
-  span: number;
-  xp: number;
-  games: number;
-  wins: number;
-  losses: number;
-  winrate: number;
-  streakLabel: string;
-  ratingLine: string;
-  /** Jauge de progression dans le palier classé courant ; absente si non classé. */
-  tier?: { pct: number; label: string };
-  history: HistoryRow[];
-}
+export type { HistoryRow, ProfileView };
 
 export function profileScreen(
   v: ProfileView,
@@ -377,93 +357,28 @@ export function profileScreen(
   onAccount: () => void,
   accountLine: string,
 ): void {
-  const pct = Math.round((v.into / v.span) * 100);
-  const rows =
-    v.history.length === 0
-      ? `<p class="sub">Aucune partie jouée. Lance un match.</p>`
-      : v.history
-          .map(
-            (h) => `<div class="hrow ${h.won ? "w" : "l"}">
-              <span class="hres">${h.won ? "V" : "D"}</span>
-              <span class="hlab">${esc(h.label)}</span>
-              <span class="hsc">${esc(h.score)}</span>
-              <span class="hdl">${esc(h.delta)}</span>
-            </div>`,
-          )
-          .join("");
-
-  const el = show(`
-    <div class="screen wide profile">
-      <div class="pbig">
-        <span class="pbig-name">${esc(v.name)}</span>
-        <span class="pbig-lv">Nv ${v.level}</span>
-      </div>
-      <p class="ratingline">${esc(v.ratingLine)}</p>
-      <p class="sub">${v.xp} XP total${v.streakLabel ? ` · ${v.streakLabel}` : ""}</p>
-
-      ${
-        v.tier
-          ? `<div class="xpbar tierbar"><span data-fill="${v.tier.pct}" style="width:0"></span></div>
-      <p class="sub" style="margin:.35rem 0 1.1rem">${esc(v.tier.label)}</p>`
-          : ""
-      }
-
-      <div class="xpbar"><span data-fill="${pct}" style="width:0"></span></div>
-      <p class="sub" style="margin:.35rem 0 1.1rem">${v.into} / ${v.span} vers le niveau ${v.level + 1}</p>
-
-      <div class="statrow">
-        <div><b>${v.games}</b><span>parties</span></div>
-        <div><b>${v.wins}–${v.losses}</b><span>V–D</span></div>
-        <div><b>${v.winrate}%</b><span>winrate</span></div>
-      </div>
-
-      <h3 class="hh">Derniers matchs</h3>
-      <div class="hlist">${rows}</div>
-
-      <p class="sub" style="margin-top:1.2rem">${esc(accountLine)}</p>
-      <div class="rowbtns">
-        <button class="cta ghost" id="account">Compte PocketBase</button>
-      </div>
-
-      <div class="rowbtns" style="margin-top:1.2rem">
-        <button class="cta ghost" id="rename">Changer de pseudo</button>
-        <button class="cta ghost danger" id="reset">Réinitialiser</button>
-      </div>
-      <button class="cta" id="back" style="margin-top:0.7rem">Retour</button>
-    </div>
-  `);
-
-  animateBars(el);
-
-  el.querySelector("#back")!.addEventListener("click", () => {
-    hideOverlay();
-    onBack();
-  });
-  el.querySelector("#account")!.addEventListener("click", () => {
-    hideOverlay();
-    onAccount();
-  });
-  el.querySelector("#rename")!.addEventListener("click", () => {
-    hideOverlay();
-    onRename();
-  });
-  const reset = el.querySelector<HTMLButtonElement>("#reset")!;
-  let armed = false;
-  let armTimer = 0;
-  reset.addEventListener("click", () => {
-    if (!armed) {
-      armed = true;
-      reset.textContent = "Confirmer la remise à zéro";
-      armTimer = window.setTimeout(() => {
-        armed = false;
-        reset.textContent = "Réinitialiser";
-      }, 3000);
-      return;
-    }
-    window.clearTimeout(armTimer);
-    hideOverlay();
-    onReset();
-  });
+  showReact(
+    createElement(ProfileScreen, {
+      view: v,
+      accountLine,
+      onBack: () => {
+        hideOverlay();
+        onBack();
+      },
+      onRename: () => {
+        hideOverlay();
+        onRename();
+      },
+      onReset: () => {
+        hideOverlay();
+        onReset();
+      },
+      onAccount: () => {
+        hideOverlay();
+        onAccount();
+      },
+    }),
+  );
 }
 
 /** Remplit toutes les jauges `.xpbar span[data-fill]` du conteneur (anim au montage). */
