@@ -727,6 +727,15 @@ export function App({ host, hud }: { host: HTMLElement; hud: HudEls }) {
           onSpectate={startSpectate}
           onRank={showRank}
           onLocker={showLocker}
+          onCredits={() =>
+            setScreen({
+              kind: "notice",
+              title: "Crédits",
+              sub: `Musique : <b>Kevin MacLeod</b> (<a href="https://incompetech.com" target="_blank" rel="noreferrer">incompetech.com</a>), licence Creative Commons BY 3.0.<br/>
+                « Wallpaper » (menu) · « Local Forecast » (Carrefour) · « Industrial Cinematic » (Fonderie) · « Cheery Monday » (Flipper).`,
+              onOk: () => toMenu(),
+            })
+          }
         />
       );
     case "name":

@@ -18,6 +18,7 @@ export interface MenuScreenProps {
   onSpectate: () => void;
   onRank: () => void;
   onLocker: () => void;
+  onCredits: () => void;
 }
 
 type Mode = StartOpts["mode"];
@@ -32,6 +33,7 @@ export function MenuScreen({
   onSpectate,
   onRank,
   onLocker,
+  onCredits,
 }: MenuScreenProps) {
   const [mode, setMode] = useState<Mode>("bot");
   const [botLevel, setBotLevel] = useState<BotLevel>(2);
@@ -132,6 +134,9 @@ export function MenuScreen({
         </button>
         <button className="linkbtn" onClick={onLocker}>
           Vestiaire
+        </button>
+        <button className="linkbtn" onClick={onCredits}>
+          Crédits
         </button>
       </div>
     </div>

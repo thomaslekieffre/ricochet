@@ -16,7 +16,7 @@ function graph(): { ctx: AudioContext; master: GainNode; music: GainNode } | nul
       master.gain.value = muted ? 0 : 1;
       master.connect(ctx.destination);
       musicGain = ctx.createGain();
-      musicGain.gain.value = 0.45; // la musique reste sous les bruitages
+      musicGain.gain.value = 0.32; // pistes réelles déjà mixées fort — reste sous les bruitages
       musicGain.connect(master);
     } catch {
       return null;

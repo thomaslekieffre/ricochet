@@ -1,0 +1,11 @@
+Musique de fond de Ricochet — toutes les pistes sont de Kevin MacLeod
+(incompetech.com), sous licence Creative Commons: By Attribution 3.0
+(https://creativecommons.org/licenses/by/3.0/).
+
+  menu-wallpaper.mp3                 "Wallpaper"
+  carrefour-local-forecast.mp3       "Local Forecast"
+  fonderie-industrial-cinematic.mp3  "Industrial Cinematic"
+  flipper-cheery-monday.mp3          "Cheery Monday"
+
+Attribution affichée dans le jeu : écran "Crédits" accessible depuis le menu
+principal (src/game/App.tsx, handler onCredits).
