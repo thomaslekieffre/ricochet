@@ -1,21 +1,43 @@
-/** Tiny synthesized SFX — no asset files. Created lazily on first user gesture. */
+/** Tiny synthesized SFX + music — no asset files. Created lazily on first user gesture. */
 
 let ctx: AudioContext | null = null;
+let master: GainNode | null = null;
+let musicGain: GainNode | null = null;
 let muted = false;
 
-function ac(): AudioContext | null {
-  if (muted) return null;
+/** Contexte + bus partagés, créés une seule fois (réutilisés par `music.ts`). */
+function graph(): { ctx: AudioContext; master: GainNode; music: GainNode } | null {
   if (!ctx) {
     try {
       ctx = new (window.AudioContext ||
         (window as unknown as { webkitAudioContext: typeof AudioContext })
           .webkitAudioContext)();
+      master = ctx.createGain();
+      master.gain.value = muted ? 0 : 1;
+      master.connect(ctx.destination);
+      musicGain = ctx.createGain();
+      musicGain.gain.value = 0.45; // la musique reste sous les bruitages
+      musicGain.connect(master);
     } catch {
       return null;
     }
   }
   if (ctx.state === "suspended") void ctx.resume();
-  return ctx;
+  return { ctx, master: master!, music: musicGain! };
+}
+
+function ac(): AudioContext | null {
+  return graph()?.ctx ?? null;
+}
+
+/** Contexte audio partagé, pour le séquenceur de `music.ts`. */
+export function audioContext(): AudioContext | null {
+  return ac();
+}
+
+/** Bus dédié à la musique (volume propre, coupé par le même mute que les SFX). */
+export function musicBus(): GainNode | null {
+  return graph()?.music ?? null;
 }
 
 function blip(
@@ -25,8 +47,9 @@ function blip(
   gain = 0.2,
   slideTo?: number,
 ): void {
-  const c = ac();
-  if (!c) return;
+  const g2 = graph();
+  if (!g2) return;
+  const { ctx: c, master: m } = g2;
   const o = c.createOscillator();
   const g = c.createGain();
   o.type = type;
@@ -34,7 +57,7 @@ function blip(
   if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, c.currentTime + dur);
   g.gain.setValueAtTime(gain, c.currentTime);
   g.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + dur);
-  o.connect(g).connect(c.destination);
+  o.connect(g).connect(m);
   o.start();
   o.stop(c.currentTime + dur + 0.02);
 }
@@ -79,6 +102,7 @@ export const sfx = {
 
 export function toggleMute(): boolean {
   muted = !muted;
+  if (master) master.gain.setTargetAtTime(muted ? 0 : 1, ac()?.currentTime ?? 0, 0.01);
   return muted;
 }
 export function isMuted(): boolean {

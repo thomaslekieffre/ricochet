@@ -22,6 +22,7 @@ import type { Cosmetic } from "../net/cosmetics";
 import type { Profile } from "../lib/profile";
 import { Match } from "./match";
 import type { MatchOpts } from "./match";
+import { playMusic } from "./music";
 import { MatchSession } from "./MatchSession";
 import type { HudEls } from "./MatchHud";
 import { ReplaySession } from "./ReplaySession";
@@ -168,6 +169,24 @@ export function App({ host, hud }: { host: HTMLElement; hud: HudEls }) {
     const el = document.getElementById("overlay");
     if (el) el.hidden = screen === null;
   }, [screen]);
+
+  // musique de fond : menu tant qu'aucune session canvas n'est active, sinon
+  // le morceau de l'arène jouée (match / replay / spectateur partagent le
+  // même arenaId au sens large).
+  useEffect(() => {
+    const spec = session?.spec;
+    if (!spec) {
+      playMusic("menu");
+      return;
+    }
+    const arenaId =
+      spec.kind === "match"
+        ? spec.opts.arenaId
+        : spec.kind === "replay"
+          ? spec.rec.setup.arenaId
+          : spec.initialState.arena.id;
+    playMusic(arenaId);
+  }, [session]);
 
   useEffect(() => {
     void Session.refresh();
