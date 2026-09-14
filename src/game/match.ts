@@ -85,6 +85,7 @@ export class Match {
   private frameIdx = 0;
   private events: TurnEvent[] = [];
   private koPlayed = false;
+  private hitPlaying = false;
   private shake = 0;
 
   // ability feedback on the canvas
@@ -296,6 +297,7 @@ export class Match {
     this.events = res.events;
     this.frameIdx = 0;
     this.koPlayed = false;
+    this.hitPlaying = false;
     this.phase = "resolving";
   }
 
@@ -355,6 +357,7 @@ export class Match {
         this.pending = m.state;
         this.frameIdx = 0;
         this.koPlayed = false;
+        this.hitPlaying = false;
         this.phase = "resolving";
         if (hashState(m.state) !== m.hash) {
           console.warn("[ricochet] désync : hash local != serveur, on suit le serveur");
@@ -373,13 +376,14 @@ export class Match {
       case "over":
         if (this.phase !== "over") {
           this.phase = "over";
-          sfx.win();
+          this.playEndSfx(m.winner);
           this.opts.onOver(m.winner);
         }
         break;
       case "opponentLeft":
         if (this.phase !== "over") {
           this.phase = "over";
+          this.playEndSfx(this.mySeat);
           this.opts.onOver(this.mySeat);
         }
         break;
@@ -394,9 +398,11 @@ export class Match {
     if (this.disposed) return;
     if (s === "reconnecting") {
       this.reconnectingNet = true;
+      sfx.warn();
       return;
     }
     this.reconnectingNet = false;
+    sfx.reconnect();
     // l'état courant peut être en retard (tour résolu côté serveur pendant la
     // coupure) — `resync` renvoie l'état complet, traité comme le "state" reçu
     // normalement en attente de tour (cf. case "state" ci-dessus).
@@ -416,7 +422,7 @@ export class Match {
     for (const e of this.events) if (e.kind === "capture") sfx.capture();
     if (this.state.over && this.state.winner !== null) {
       this.phase = "over";
-      sfx.win();
+      this.playEndSfx(this.state.winner);
       this.opts.onOver(this.state.winner);
       return;
     }
@@ -428,6 +434,17 @@ export class Match {
       });
     }
     this.startTurn();
+  }
+
+  /** Le fanfare de victoire ne doit sonner que côté gagnant — en hotseat (pas
+   *  de "moi" fixe), on garde le fanfare neutre pour les deux. */
+  private playEndSfx(winner: 0 | 1): void {
+    if (this.opts.net) {
+      (winner === this.opts.net.seat ? sfx.win : sfx.lose)();
+      return;
+    }
+    const bothHuman = this.opts.sides[0] === "human" && this.opts.sides[1] === "human";
+    (bothHuman || winner === 0 ? sfx.win : sfx.lose)();
   }
 
   // ---- input ------------------------------------------------------------
@@ -616,7 +633,11 @@ export class Match {
       if (f?.ko && !this.koPlayed) {
         sfx.ko();
         this.koPlayed = true;
+      } else if (f?.hit && !f.ko && !this.hitPlaying) {
+        sfx.hit();
+        this.hitPlaying = true;
       }
+      if (!f?.hit) this.hitPlaying = false;
       this.frameIdx += PLAYBACK_SPEED;
       if (this.frameIdx >= this.frames.length) this.finishTurn();
     }

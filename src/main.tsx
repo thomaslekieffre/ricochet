@@ -6,7 +6,7 @@ import type { RefObject } from "react";
 import { App } from "./game/App";
 import { MatchHud } from "./game/MatchHud";
 import type { HudEls, HudRefs } from "./game/MatchHud";
-import { isMuted, toggleMute } from "./game/audio";
+import { isMuted, sfx, toggleMute } from "./game/audio";
 
 const host = document.getElementById("stagehost");
 if (!host) throw new Error("#stagehost introuvable");
@@ -91,3 +91,12 @@ mute?.addEventListener("click", () => {
   mute.textContent = m ? "🔇" : "🔊";
 });
 if (mute) mute.textContent = isMuted() ? "🔇" : "🔊";
+
+// clic générique sur les écrans de menu (#overlay, #curtain) — le HUD de
+// match (#hud) a déjà ses propres sons dédiés par action (select/lock/etc.),
+// pas besoin d'un clic générique en plus dessus.
+for (const root of [overlay, document.getElementById("curtain")]) {
+  root?.addEventListener("click", (e) => {
+    if ((e.target as HTMLElement).closest("button")) sfx.click();
+  });
+}

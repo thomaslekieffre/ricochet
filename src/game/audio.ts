@@ -61,6 +61,20 @@ export const sfx = {
       setTimeout(() => blip(f, 0.18, "sine", 0.18), i * 110),
     );
   },
+  lose: () => {
+    [392, 330, 262].forEach((f, i) =>
+      setTimeout(() => blip(f, 0.24, "sawtooth", 0.14), i * 140),
+    );
+  },
+  /** clic générique de navigation (menus, écrans) — volontairement discret. */
+  click: () => blip(520, 0.045, "square", 0.07),
+  /** perte de connexion en ligne. */
+  warn: () => blip(200, 0.22, "sawtooth", 0.14, 140),
+  /** reconnexion réussie en ligne. */
+  reconnect: () => {
+    blip(440, 0.08, "sine", 0.12);
+    setTimeout(() => blip(660, 0.1, "sine", 0.12), 80);
+  },
 };
 
 export function toggleMute(): boolean {
