@@ -18,10 +18,12 @@ export function SpectateListScreen({ rows, onWatch, onRefresh, onCancel }: Spect
       <p className="sub">
         {rows.length === 0 ? "Aucun match en cours pour l'instant." : "Choisis un match à suivre."}
       </p>
-      <div className="pool">
+      <div className="spectate-list">
         {rows.map((r) => (
-          <button className="pcard" key={r.matchId} onClick={() => onWatch(r.matchId)}>
-            {r.label}
+          <button className="spectate-row" key={r.matchId} onClick={() => onWatch(r.matchId)}>
+            <i className="live-dot" aria-hidden="true" />
+            <span className="sr-label">{r.label}</span>
+            <span className="sr-go">Regarder →</span>
           </button>
         ))}
       </div>
