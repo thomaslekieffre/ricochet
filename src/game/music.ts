@@ -103,25 +103,90 @@ function noise(ctx: AudioContext): AudioBuffer {
   return noiseBuf;
 }
 
-function note(
-  ctx: AudioContext,
-  bus: GainNode,
-  t: number,
-  freq: number,
-  dur: number,
-  type: OscillatorType,
-  gain: number,
-): void {
+/**
+ * Flûte — sinusoïde (le souffle d'une flûte est presque un ton pur) + léger
+ * vibrato + une fine couche de bruit filtré en bande (le souffle) sous le
+ * ton, avec une attaque douce plutôt qu'un déclic net. Pour le lead.
+ */
+function flute(ctx: AudioContext, bus: GainNode, t: number, freq: number, dur: number, gain: number): void {
   const o = ctx.createOscillator();
-  const g = ctx.createGain();
-  o.type = type;
+  o.type = "sine";
   o.frequency.setValueAtTime(freq, t);
+
+  const vibrato = ctx.createOscillator();
+  vibrato.frequency.value = 5;
+  const vibratoDepth = ctx.createGain();
+  vibratoDepth.gain.value = freq * 0.008;
+  vibrato.connect(vibratoDepth).connect(o.frequency);
+  vibrato.start(t);
+  vibrato.stop(t + dur + 0.05);
+
+  const attack = Math.min(0.05, dur * 0.35);
+  const g = ctx.createGain();
   g.gain.setValueAtTime(0.0001, t);
-  g.gain.exponentialRampToValueAtTime(gain, t + 0.008);
+  g.gain.linearRampToValueAtTime(gain, t + attack);
   g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
   o.connect(g).connect(bus);
   o.start(t);
-  o.stop(t + dur + 0.02);
+  o.stop(t + dur + 0.05);
+
+  const breath = ctx.createBufferSource();
+  breath.buffer = noise(ctx);
+  const bp = ctx.createBiquadFilter();
+  bp.type = "bandpass";
+  bp.frequency.value = freq * 1.5;
+  bp.Q.value = 0.9;
+  const bg = ctx.createGain();
+  bg.gain.setValueAtTime(0.0001, t);
+  bg.gain.linearRampToValueAtTime(gain * 0.22, t + attack);
+  bg.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  breath.connect(bp).connect(bg).connect(bus);
+  breath.start(t);
+  breath.stop(t + dur + 0.05);
+}
+
+/**
+ * Corde pincée façon guitare/harpe — modèle Karplus-Strong : une brève
+ * impulsion de bruit excite une boucle à retard (delay + filtre passe-bas
+ * dans le retour), qui simule une corde qui vibre et s'éteint naturellement.
+ * Beaucoup plus « organique » qu'un oscillateur classique. Pour la basse.
+ */
+function pluck(ctx: AudioContext, bus: GainNode, t: number, freq: number, ring: number, gain: number): void {
+  const delayTime = 1 / freq;
+  const delay = ctx.createDelay(0.05);
+  delay.delayTime.value = delayTime;
+  const damp = ctx.createBiquadFilter();
+  damp.type = "lowpass";
+  damp.frequency.value = Math.min(freq * 9, 4200);
+  const feedback = ctx.createGain();
+  feedback.gain.value = 0.98;
+
+  const excite = ctx.createBufferSource();
+  excite.buffer = noise(ctx);
+  const exciteGain = ctx.createGain();
+  exciteGain.gain.setValueAtTime(gain * 1.6, t);
+  exciteGain.gain.exponentialRampToValueAtTime(0.0001, t + delayTime * 1.5);
+
+  const out = ctx.createGain();
+  out.gain.setValueAtTime(gain * 1.3, t);
+  out.gain.exponentialRampToValueAtTime(0.0001, t + ring);
+
+  excite.connect(exciteGain).connect(delay);
+  delay.connect(damp);
+  damp.connect(feedback);
+  feedback.connect(delay); // boucle de retard — simule la corde qui vibre
+  damp.connect(out).connect(bus);
+
+  excite.start(t);
+  excite.stop(t + delayTime * 2);
+
+  const cleanupMs = Math.max(0, (t - ctx.currentTime + ring + 0.1) * 1000);
+  setTimeout(() => {
+    delay.disconnect();
+    damp.disconnect();
+    feedback.disconnect();
+    out.disconnect();
+  }, cleanupMs);
 }
 
 function kick(ctx: AudioContext, bus: GainNode, t: number): void {
@@ -178,9 +243,12 @@ function scheduleStep(ctx: AudioContext, bus: GainNode, t: Track, i: number, tim
   if (t.kick[i]) kick(ctx, bus, time);
   if (t.perc[i]) (t.percType === "clang" ? clang : hat)(ctx, bus, time);
   const b = t.bass[i];
-  if (b != null) note(ctx, bus, time, (t.root / 2) * 2 ** (b / 12), stepDur * 3.4, "triangle", 0.22);
+  // la corde pincée sonne toute seule (Karplus-Strong) : on la laisse vibrer
+  // ~2 temps plutôt que de la couper à la durée du pas, comme une vraie
+  // pince de guitare/harpe qu'on ne rejoue qu'au prochain temps.
+  if (b != null) pluck(ctx, bus, time, (t.root / 2) * 2 ** (b / 12), (60 / t.bpm) * 2, 0.5);
   const l = t.lead[i];
-  if (l != null) note(ctx, bus, time, t.root * 2 ** (l / 12), stepDur * 0.85, "square", 0.11);
+  if (l != null) flute(ctx, bus, time, t.root * 2 ** (l / 12), stepDur * 0.95, 0.16);
 }
 
 function tick(): void {
