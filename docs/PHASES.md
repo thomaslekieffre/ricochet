@@ -260,6 +260,29 @@ qu'à un vrai `requestAnimationFrame` continu) — mécanisme identique à
 celui de Boulder, déjà vérifié bit à bit dans la session précédente.
 `tsc`/`test`/`check`/`build` verts.
 
+**Reste à faire : Ram, Hook, Sling, Prism, Vex, Arc** (6 héros, pas 4 — le
+compte ci-dessus datait d'avant que le roster complet à 8 héros soit
+généré). Prompts à adapter par archétype (silhouettes déjà établies pour
+les socles, cf. section sprites : octogone brawler, losange dasher,
+hexagone sniper, étoile mage) :
+
+> **Sniper (Sling/Arc) touché** : variante du prompt Boulder avec « lean
+> precise sniper character », « angular hexagonal-plated body », arme
+> longue tenue en équilibre lors du recul.
+
+> **Mage (Prism/Vex) touché** : variante avec « slender mystic character in
+> a flowing angular robe », silhouette à pointes façon étoile, un halo
+> d'énergie coupé net derrière lui.
+
+**Tentative de reprise (2026-09-14)** : quota ZeroGPU du compte HF
+(`black-forest-labs/FLUX.1-schnell`) toujours épuisé, y compris connecté
+au compte (testé sur la page wrapper `huggingface.co/spaces/...`, pas
+seulement la Space directe) — modal « You've hit your daily ZeroGPU
+limit » identique, avec incitation à l'abonnement PRO (9$/mois, hors de
+question sans que Zoe le demande explicitement). Rien généré. À retenter
+plus tard, même pipeline, en commençant par Ram (brawler, prompt le plus
+proche de Boulder déjà validé).
+
 Intégration réalisée exactement comme prévu ci-dessus, avec un ajustement :
 `heroTexture()` est devenu `heroTexture(hero, variant)` avec cache par
 `${hero}:${url}`, et un nouveau `setBodySprite(bv, tex, r)` factorise le
