@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { HEROES, type HeroKind } from "../../engine/index";
+import { HERO_PORTRAIT } from "../hero-portraits";
 import { ARCH_FR } from "../labels";
 
 export interface OnlineDraftScreenProps {
@@ -28,12 +29,17 @@ function PoolCard({
   return (
     <button className={cls} disabled={locked} onClick={onClick}>
       {badge ? <span className="pc-badge">{badge}</span> : null}
-      <span className="pc-name">{d.name}</span>
-      <span className={`pc-arch a-${d.archetype}`}>{ARCH_FR[d.archetype]}</span>
-      <span className="pc-blurb">{d.blurb}</span>
-      <span className="pc-kit">
-        <kbd>A</kbd>
-        {d.ability.name} · {d.abilityCost}
+      <span className={`roster-medal a-${d.archetype} pc-portrait`}>
+        <img src={HERO_PORTRAIT[hero]} alt="" />
+      </span>
+      <span className="pc-body">
+        <span className="pc-name">{d.name}</span>
+        <span className={`pc-arch a-${d.archetype}`}>{ARCH_FR[d.archetype]}</span>
+        <span className="pc-blurb">{d.blurb}</span>
+        <span className="pc-kit">
+          <kbd>A</kbd>
+          {d.ability.name} · {d.abilityCost}
+        </span>
       </span>
     </button>
   );

@@ -679,6 +679,24 @@ canvas#stage {
 
 .menu-foot { display: flex; gap: 1.2rem; justify-content: center; margin-top: 1.8rem; }
 
+/* --- champs texte (pseudo, compte) — jamais stylés jusqu'ici, tombaient
+   au look brut du navigateur, très hors DA. --- */
+.tin {
+  width: 100%;
+  max-width: 320px;
+  background: var(--panel-2);
+  border: 2px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.95rem;
+  padding: 0.6rem 1.1rem;
+  text-align: center;
+  transition: border-color 140ms ease;
+}
+.tin::placeholder { color: var(--muted); }
+.tin:focus { outline: none; border-color: var(--zone); }
+
 /* =====================================================================
    Draft — tableau face-à-face
    ===================================================================== */
@@ -890,8 +908,8 @@ kbd {
   font-size: 0.8rem;
   color: var(--on-a);
   background: var(--momentum);
-  border-radius: 2px;
-  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  padding: 0.1rem 0.55rem;
 }
 .ratingline {
   font-family: var(--disp);
@@ -902,10 +920,10 @@ kbd {
 }
 
 .xpbar {
-  height: 8px;
+  height: 10px;
   background: var(--panel-2);
-  border: 1px solid var(--line);
-  border-radius: 2px;
+  border: 2px solid var(--line);
+  border-radius: 999px;
   overflow: hidden;
 }
 .xpbar span {
@@ -916,8 +934,17 @@ kbd {
 }
 .tierbar span { background: var(--zone); }
 
-.statrow { display: flex; justify-content: center; gap: 1.8rem; margin: 0.5rem 0 0.6rem; }
-.statrow div { display: flex; flex-direction: column; align-items: center; gap: 0.1rem; }
+.statrow { display: flex; justify-content: center; gap: 0.6rem; margin: 0.5rem 0 0.6rem; }
+.statrow div {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  background: var(--panel-2);
+  border: 2px solid var(--line);
+  border-radius: 16px;
+  padding: 0.5rem 1rem;
+}
 .statrow b {
   font-family: var(--disp);
   font-weight: 800;
@@ -948,9 +975,9 @@ kbd {
   gap: 0.6rem;
   background: var(--panel);
   border: 1px solid var(--line);
-  border-left-width: 3px;
-  border-radius: 2px;
-  padding: 0.36rem 0.6rem;
+  border-left: 4px solid var(--line);
+  border-radius: 999px;
+  padding: 0.4rem 0.9rem;
   font-size: 0.76rem;
   font-variant-numeric: tabular-nums;
   text-align: left;
@@ -989,7 +1016,12 @@ kbd {
   align-items: baseline;
   justify-content: center;
   gap: 1rem;
-  margin: 0.6rem 0 1rem;
+  margin: 0.6rem auto 1rem;
+  width: fit-content;
+  background: var(--panel-2);
+  border: 2px solid var(--line);
+  border-radius: 999px;
+  padding: 0.5rem 1.4rem;
 }
 .scoreline b {
   font-family: var(--disp);
